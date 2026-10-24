@@ -1,13 +1,14 @@
 import * as vscode from "vscode";
 import { startBaseTier, type BaseTier } from "./base/index.ts";
 import type { BaseTierApi } from "./enhanced/api.ts";
-import { activateEnhanced } from "./enhanced/index.ts";
+import { activateEnhanced, enhancedTestHooks } from "./enhanced/index.ts";
 
 export interface RozoneExports {
   base: BaseTierApi;
   _test: {
     tier: BaseTier;
     injectedTopics(): ReadonlySet<string>;
+    enhanced: typeof enhancedTestHooks;
   };
 }
 
@@ -36,7 +37,7 @@ export function activate(context: vscode.ExtensionContext): RozoneExports {
     log.error(`enhanced tier failed to activate; staying in base tier: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  return { base: base.api, _test: { tier: base, injectedTopics: base.injectedTopics } };
+  return { base: base.api, _test: { tier: base, injectedTopics: base.injectedTopics, enhanced: enhancedTestHooks } };
 }
 
 export async function deactivate(): Promise<void> {

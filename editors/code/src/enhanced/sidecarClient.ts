@@ -80,6 +80,10 @@ export class SidecarClient {
     this.#opts = opts;
   }
 
+  get pid(): number | undefined {
+    return this.running ? this.#child?.pid : undefined;
+  }
+
   get running(): boolean {
     return this.#child !== undefined && this.#exitInfo === undefined;
   }

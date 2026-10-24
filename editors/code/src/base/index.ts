@@ -51,6 +51,7 @@ export function startBaseTier(context: vscode.ExtensionContext, log: vscode.LogO
     setInjectedTopics: (names) => {
       injected = new Set(names);
     },
+    ready: discovery.ready,
     onDidSaveRFile: discovery.onDidSaveRFile,
     log,
   };

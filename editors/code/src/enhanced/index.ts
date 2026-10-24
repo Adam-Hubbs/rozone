@@ -2,12 +2,27 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ActivateEnhanced, BaseTierApi } from "./api.ts";
-import { SidecarController } from "./lifecycle.ts";
+import { SidecarController, type ViewState } from "./lifecycle.ts";
 import { PositronInjector } from "./positronInjector.ts";
 import { createPositronBridge, tryAcquirePositronApi } from "./positronApi.ts";
 import { LaunchResolver } from "./rDiscovery.ts";
 import { SidecarClient } from "./sidecarClient.ts";
 import { describeState } from "./statusModel.ts";
+
+// Read-only window into the running tier for the integration tests, exposed through the extension API `_test`.
+let testIdleMinutes: number | undefined;
+let testState: ViewState | undefined;
+let testClient: SidecarClient | undefined;
+let testRearmIdle: (() => void) | undefined;
+
+export const enhancedTestHooks = {
+  state: (): ViewState | undefined => testState,
+  sidecarPid: (): number | undefined => testClient?.pid,
+  setIdleMinutes(minutes: number | undefined): void {
+    testIdleMinutes = minutes;
+    testRearmIdle?.();
+  },
+};
 
 const SHOW_LOG_COMMAND = "rozone.enhanced.showLog";
 
@@ -66,7 +81,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
     },
     config: {
       enabled: () => config().get<boolean>("enhanced.enabled", true),
-      idleMinutes: () => config().get<number>("sidecar.idleTimeoutMinutes", 10),
+      idleMinutes: () => testIdleMinutes ?? config().get<number>("sidecar.idleTimeoutMinutes", 10),
       helpInjection: () => config().get<boolean>("helpInjection", true),
     },
     resolveLaunch: () => resolver.resolve(),
@@ -74,7 +89,8 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
     createClient: (spec) => {
       fs.mkdirSync(libRoot, { recursive: true });
       const cwd = vscode.workspace.workspaceFolders?.find((f) => f.uri.scheme === "file")?.uri.fsPath;
-      return new SidecarClient({ ...spec, cwd, log: base.log });
+      testClient = new SidecarClient({ ...spec, cwd, log: base.log });
+      return testClient;
     },
     readFile: (file) => fs.promises.readFile(file, "utf8"),
     libRoot,
@@ -83,6 +99,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
       void vscode.window.showInformationMessage("Install roxygen2 for richer docs");
     },
     onState: (state) => {
+      testState = state;
       const view = describeState(state);
       status.text = view.text;
       status.tooltip = view.tooltip;
@@ -90,6 +107,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   });
   const live = controller;
   live.updateState();
+  testRearmIdle = () => live.rearmIdle();
 
   const subscriptions: vscode.Disposable[] = [
     status,
@@ -110,7 +128,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
     }),
   ];
 
-  void live.refresh();
+  void (base.ready ?? Promise.resolve()).then(() => live.refresh());
 
   return new vscode.Disposable(() => {
     live.dispose();

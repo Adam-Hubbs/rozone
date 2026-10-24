@@ -14,6 +14,8 @@ export interface BaseTierApi {
   setInjectedTopics(names: ReadonlySet<string>): void;
   /** Fires after an indexed R file is saved to disk. */
   readonly onDidSaveRFile: vscode.Event<vscode.Uri>;
+  /** Resolves once the first workspace scan has been sent to the index; builds wait for it. */
+  readonly ready?: Promise<void>;
   readonly log: vscode.LogOutputChannel;
 }
 
