@@ -10,3 +10,11 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rozone_core.workspace = true
+serde.workspace = true
+serde-wasm-bindgen = "0.6.5"
+console_error_panic_hook = "0.1.7"
+wasm-bindgen = "=0.2.129"
+
+# build-wasm.mjs runs wasm-opt itself so it can use -Oz and report sizes.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
