@@ -1,78 +1,54 @@
-// Adapter from the real Positron extension API to PositronBridge. Positron injects a global
-// `acquirePositronApi()` into the extension host (this is what @posit-dev/positron wraps), so
-// no runtime dependency is needed. The shapes below are the parts we rely on; they are
-// declared locally and everything is defensive because the API is not versioned.
+// Adapter from the real Positron extension API to PositronBridge.
+import { tryAcquirePositronApi } from "@posit-dev/positron";
+import type { PositronApi } from "@posit-dev/positron";
 import type { Disposable, EvalOutcome, PositronBridge, RSession, SessionState } from "./positronBridge.ts";
 
-interface PositronEvent<T> {
-  (listener: (value: T) => void): Disposable;
-}
+export { tryAcquirePositronApi };
 
-interface PositronSession {
-  metadata: { sessionId: string };
-  runtimeMetadata: { runtimePath: string; languageId: string };
-  onDidChangeRuntimeState?: PositronEvent<string>;
-}
-
-interface PositronRuntime {
-  getForegroundSession(): PromiseLike<PositronSession | undefined>;
-  onDidChangeForegroundSession: PositronEvent<unknown>;
-  evaluateCode?: (
-    languageId: string,
-    code: string,
-    token: unknown,
-    sessionId: string,
-    busyBehavior: unknown,
-  ) => PromiseLike<unknown>;
-}
-
-interface PositronApi {
-  runtime: PositronRuntime;
-  RuntimeBusyBehavior?: { Reject?: unknown };
-}
-
-export function tryAcquirePositronApi(): PositronApi | undefined {
-  const acquire = (globalThis as { acquirePositronApi?: () => PositronApi }).acquirePositronApi;
-  if (typeof acquire !== "function") return undefined;
-  try {
-    return acquire();
-  } catch {
-    return undefined;
-  }
-}
+type Session = NonNullable<Awaited<ReturnType<PositronApi["runtime"]["getForegroundSession"]>>>;
 
 const NEVER_CANCELLED = {
   isCancellationRequested: false,
   onCancellationRequested: (): Disposable => ({ dispose() {} }),
 };
 
-function toRSession(session: PositronSession | undefined): RSession | undefined {
+function toRSession(session: Session | undefined): RSession | undefined {
   if (!session || session.runtimeMetadata.languageId !== "r") return undefined;
   return { id: session.metadata.sessionId, runtimePath: session.runtimeMetadata.runtimePath };
 }
 
+const isIdle = (state: string | undefined) => state === undefined || state === "idle" || state === "ready";
+
 export function createPositronBridge(api: PositronApi): PositronBridge {
-  const runtime = api.runtime;
-  const foreground = async () => runtime.getForegroundSession();
+  const { runtime } = api;
 
   return {
     async foregroundSession() {
-      return toRSession(await foreground());
+      return toRSession(await runtime.getForegroundSession());
     },
 
     async evaluate(sessionId, code): Promise<EvalOutcome> {
-      if (!runtime.evaluateCode) return { status: "error", message: "positron.runtime.evaluateCode is unavailable" };
+      const session = await runtime.getSession(sessionId);
+      if (!isIdle(session?.getRuntimeState?.())) return { status: "busy" };
       try {
-        const value = await runtime.evaluateCode("r", code, NEVER_CANCELLED, sessionId, api.RuntimeBusyBehavior?.Reject ?? "reject");
-        return { status: "ok", value };
+        // Reject, never Queue: a queued evaluation could run long after the build it belongs to.
+        const { result } = await runtime.evaluateCode(
+          "r",
+          code,
+          NEVER_CANCELLED as never,
+          sessionId,
+          api.RuntimeBusyBehavior.Reject,
+        );
+        return { status: "ok", value: result };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return /busy/i.test(message) ? { status: "busy" } : { status: "error", message };
+        const stillIdle = isIdle((await runtime.getSession(sessionId))?.getRuntimeState?.());
+        return /busy/i.test(message) || !stillIdle ? { status: "busy" } : { status: "error", message };
       }
     },
 
     onDidChangeForegroundSession(listener) {
-      return runtime.onDidChangeForegroundSession(async () => listener(toRSession(await foreground())));
+      return runtime.onDidChangeForegroundSession(async () => listener(toRSession(await runtime.getForegroundSession())));
     },
 
     onDidChangeSessionState(listener) {
@@ -80,18 +56,18 @@ export function createPositronBridge(api: PositronApi): PositronBridge {
       const watch = async () => {
         stateSub?.dispose();
         stateSub = undefined;
-        const session = await foreground();
+        const session = await runtime.getForegroundSession();
         if (!session || session.runtimeMetadata.languageId !== "r") return;
         stateSub = session.onDidChangeRuntimeState?.((state) =>
           listener({ sessionId: session.metadata.sessionId, state: state as SessionState }),
         );
       };
       void watch();
-      const fgSub = runtime.onDidChangeForegroundSession(() => void watch());
+      const foregroundSub = runtime.onDidChangeForegroundSession(() => void watch());
       return {
         dispose() {
           stateSub?.dispose();
-          fgSub.dispose();
+          foregroundSub.dispose();
         },
       };
     },

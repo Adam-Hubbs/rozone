@@ -245,8 +245,10 @@ describe("spawn function", () => {
     const child = Object.assign(new EventEmitter(), { stdout, stdin, stderr: new PassThrough(), kill: () => true });
     const client = new SidecarClient({ command: "x", args: [], env: {}, log, spawn: () => child as unknown as cp.ChildProcess });
     const started = client.start();
-    for (const ch of '{"event":"hello","protocol":1,"missing":[],"ok":true}\r\n') stdout.write(ch);
-    assert.equal((await started).ok, true);
+    for (const ch of '{"event":"hello","protocol":1,"missing":[""],"ok":true}\r\n') stdout.write(ch);
+    const hello = await started;
+    assert.equal(hello.ok, true);
+    assert.deepEqual(hello.missing, []);
     const pending = client.request("ping");
     stdout.write('{"id":1,"result":{"pong":true}}\n{"id":99,"result":{}}\n');
     assert.deepEqual(await pending, { pong: true });

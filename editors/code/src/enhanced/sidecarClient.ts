@@ -188,7 +188,10 @@ export class SidecarClient {
       if (hello) {
         clearTimeout(hello.timer);
         this.#hello = undefined;
-        hello.resolve({ missing: [], ...record } as unknown as Hello);
+        const raw = record["missing"];
+        // The sidecar writes hello without jsonlite, which can turn an empty vector into [""].
+        const missing = (Array.isArray(raw) ? raw : [raw]).filter((m): m is string => typeof m === "string" && m !== "");
+        hello.resolve({ ...record, missing } as unknown as Hello);
       }
       return;
     }
