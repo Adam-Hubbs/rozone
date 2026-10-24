@@ -8,7 +8,9 @@
   "engines": {
     "vscode": "^1.100.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "type": "module",
   "main": "./dist/extension.cjs",
   "activationEvents": [
@@ -19,7 +21,10 @@
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "In untrusted workspaces rozone only parses files; it never runs R.",
-      "restrictedConfigurations": ["rozone.r.path", "rozone.enhanced.enabled"]
+      "restrictedConfigurations": [
+        "rozone.r.path",
+        "rozone.enhanced.enabled"
+      ]
     },
     "virtualWorkspaces": {
       "supported": "limited",
@@ -28,9 +33,18 @@
   },
   "contributes": {
     "commands": [
-      { "command": "rozone.openDocumentation", "title": "rozone: Open Documentation" },
-      { "command": "rozone.showOutput", "title": "rozone: Show Output" },
-      { "command": "rozone.restartSidecar", "title": "rozone: Restart R Sidecar" }
+      {
+        "command": "rozone.openDocumentation",
+        "title": "rozone: Open Documentation"
+      },
+      {
+        "command": "rozone.showOutput",
+        "title": "rozone: Show Output"
+      },
+      {
+        "command": "rozone.restartSidecar",
+        "title": "rozone: Restart R Sidecar"
+      }
     ],
     "configuration": {
       "title": "rozone",
@@ -58,11 +72,43 @@
         },
         "rozone.files.exclude": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["**/renv/**", "**/packrat/**", "**/node_modules/**", "**/.git/**"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/renv/**",
+            "**/packrat/**",
+            "**/node_modules/**",
+            "**/.git/**"
+          ],
           "description": "Glob patterns of R files not to index."
         }
       }
     }
+  },
+  "scripts": {
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --test 'test/unit/**/*.test.ts'",
+    "test:integration": "node esbuild.mjs && vscode-test",
+    "test": "npm run typecheck && npm run test:unit && npm run test:integration",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "node esbuild.mjs --production"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.19.2",
+    "@types/vscode": "1.100.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "mocha": "^12.0.3",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@posit-dev/positron": "^0.2.12"
   }
 }
