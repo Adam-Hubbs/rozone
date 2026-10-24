@@ -42,7 +42,7 @@ export function createDocPreview(client: IndexClient, discovery: Discovery, log:
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== "r") return undefined;
     const path = pathKey(editor.document.uri);
-    discovery.flushPending(path);
+    discovery.flushPending();
     const hover = await client.hover(path, editor.document.offsetAt(editor.selection.active));
     return hover ? { name: hover.name, path } : undefined;
   };

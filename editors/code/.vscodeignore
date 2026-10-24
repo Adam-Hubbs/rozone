@@ -1,0 +1,8 @@
+**
+!package.json
+!dist/extension.cjs
+!dist/worker.cjs
+!dist/wasm/**
+!r/sidecar.R
+!README.md
+!LICENSE*

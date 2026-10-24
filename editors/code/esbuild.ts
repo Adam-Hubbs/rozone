@@ -7,7 +7,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
-const common = {
+const common: esbuild.BuildOptions = {
   bundle: true,
   platform: "node",
   format: "cjs",
@@ -32,7 +32,7 @@ function copyWasm() {
   writeFileSync(join(target, "package.json"), `${JSON.stringify({ private: true, type: "commonjs" })}\n`);
 }
 
-const builds = [
+const builds: esbuild.BuildOptions[] = [
   {
     ...common,
     entryPoints: { extension: "src/extension.ts" },
@@ -51,7 +51,7 @@ const builds = [
     sourcemap: true,
     minify: false,
     entryPoints: Object.fromEntries(
-      [...globSync("test/integration/**/*.ts", { cwd: root }), ...globSync("test/helpers/**/*.ts", { cwd: root })].map((file) => [
+      [...globSync("test/integration/**/*.test.ts", { cwd: root }), ...globSync("test/integration/**/*.setup.ts", { cwd: root })].map((file) => [
         file.replace(/\.ts$/, ""),
         file,
       ]),

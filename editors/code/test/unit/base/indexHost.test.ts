@@ -15,7 +15,7 @@ function setup() {
   return { host, behavior, logs, call };
 }
 
-const update = (path: string, text: string) => ({ method: "updateFiles", params: { files: [{ path, text }] } }) as const;
+const update = (path: string, text: string): RequestMessage => ({ id: 0, method: "updateFiles", params: { files: [{ path, text }] } });
 
 test("answers queries from the index and echoes the request id", () => {
   const { call } = setup();

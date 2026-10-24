@@ -16,8 +16,8 @@ export interface Discovery extends vscode.Disposable {
   readonly onDidSaveRFile: vscode.Event<vscode.Uri>;
   indexedFiles(): readonly string[];
   isIndexed(path: string): boolean;
-  /** Push any coalesced edit for this document now so the next query sees it. */
-  flushPending(path: string): void;
+  /** Push every coalesced edit now: a query may resolve into another open document. */
+  flushPending(): void;
   rescan(): Promise<void>;
 }
 
@@ -213,7 +213,7 @@ export function createDiscovery(client: IndexClient, log: vscode.LogOutputChanne
     onDidSaveRFile: saved.event,
     indexedFiles: () => indexed.files(),
     isIndexed: (path) => indexed.has(path),
-    flushPending: (path) => coalescer.flushKey(path),
+    flushPending: () => coalescer.flushAll(),
     rescan,
     dispose() {
       coalescer.dispose();

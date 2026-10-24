@@ -36,7 +36,7 @@ export function createHoverProvider(deps: ProviderDeps): vscode.HoverProvider {
       if (!deps.discovery.isIndexed(path)) return undefined;
       try {
         return await timed(deps, "hover", async () => {
-          deps.discovery.flushPending(path);
+          deps.discovery.flushPending();
           const hover = await deps.client.hover(path, document.offsetAt(position));
           if (!hover || !shouldShowHover(hover, deps.injectedTopics())) return undefined;
           const model = toHoverModel(hover);
@@ -58,7 +58,7 @@ export function createSignatureHelpProvider(deps: ProviderDeps): vscode.Signatur
       if (!deps.discovery.isIndexed(path)) return undefined;
       try {
         return await timed(deps, "signatureHelp", async () => {
-          deps.discovery.flushPending(path);
+          deps.discovery.flushPending();
           const help = await deps.client.signatureHelp(path, document.offsetAt(position));
           if (!help) return undefined;
           const model = toSignatureModel(help);
