@@ -75,7 +75,11 @@ fn convert_line(line: &str, out: &mut String) {
         rest = &rest[i..];
         let consumed = if rest.starts_with('`') {
             copy_code_span(rest, out)
-        } else if out.chars().next_back().is_some_and(|c| c.is_alphanumeric() || matches!(c, ')' | ']' | '[' | '_' | '.')) {
+        } else if out
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || matches!(c, ')' | ']' | '[' | '_' | '.'))
+        {
             out.push('[');
             1
         } else {
@@ -148,7 +152,10 @@ fn is_destination(dest: &str) -> bool {
 }
 
 fn is_code_text(inner: &str) -> bool {
-    inner.len() > 2 && inner.starts_with('`') && inner.ends_with('`') && !inner[1..inner.len() - 1].contains('`')
+    inner.len() > 2
+        && inner.starts_with('`')
+        && inner.ends_with('`')
+        && !inner[1..inner.len() - 1].contains('`')
 }
 
 /// `fn`, `fn()`, `pkg::fn`, `pkg::fn()`.
@@ -246,8 +253,14 @@ fn push_page_section(out: &mut Vec<String>, heading: &str, body: Option<&str>) {
 }
 
 pub fn page(name: &str, file_label: &str, signature: &str, doc: &Resolved) -> String {
-    let heading = doc.title.as_deref().map_or_else(|| name.to_string(), convert_links);
-    let mut parts = vec![format!("# {heading}"), format!("`{name}` is defined in `{file_label}`.")];
+    let heading = doc
+        .title
+        .as_deref()
+        .map_or_else(|| name.to_string(), convert_links);
+    let mut parts = vec![
+        format!("# {heading}"),
+        format!("`{name}` is defined in `{file_label}`."),
+    ];
     parts.extend(doc.related.iter().cloned());
     parts.push(format!("```r\n{signature}\n```"));
     push_page_section(&mut parts, "Description", doc.description.as_deref());
@@ -302,7 +315,10 @@ mod tests {
             ("see [pkg::fn]", "see `pkg::fn`"),
             ("see [`text`][dest]", "see `text`"),
             ("see [`fn()`]", "see `fn()`"),
-            ("<[`data-masked`][dplyr::dplyr_data_masking]> col", "<`data-masked`> col"),
+            (
+                "<[`data-masked`][dplyr::dplyr_data_masking]> col",
+                "<`data-masked`> col",
+            ),
             ("a [link](http://x.y) b", "a [link](http://x.y) b"),
             ("keep `[fn()]` code", "keep `[fn()]` code"),
             ("keep ``a ` [fn()]`` code", "keep ``a ` [fn()]`` code"),
@@ -325,15 +341,27 @@ mod tests {
     #[test]
     fn fences_are_left_alone() {
         let text = "before [fn()]\n```r\nx[fn()]\n```\nafter [fn()]";
-        assert_eq!(convert_links(text), "before `fn()`\n```r\nx[fn()]\n```\nafter `fn()`");
+        assert_eq!(
+            convert_links(text),
+            "before `fn()`\n```r\nx[fn()]\n```\nafter `fn()`"
+        );
     }
 
     #[test]
     fn signature_offsets_are_utf16() {
         let formals = vec![
-            Formal { name: "x".into(), default: None },
-            Formal { name: "é".into(), default: Some("\"😀\"".into()) },
-            Formal { name: "...".into(), default: None },
+            Formal {
+                name: "x".into(),
+                default: None,
+            },
+            Formal {
+                name: "é".into(),
+                default: Some("\"😀\"".into()),
+            },
+            Formal {
+                name: "...".into(),
+                default: None,
+            },
         ];
         let sig = signature("f", &formals);
         assert_eq!(sig.label, "f(x, é = \"😀\", ...)");
@@ -346,7 +374,10 @@ mod tests {
 
     #[test]
     fn multiline_defaults_are_collapsed() {
-        let formals = vec![Formal { name: "x".into(), default: Some("c(1,\n      2)".into()) }];
+        let formals = vec![Formal {
+            name: "x".into(),
+            default: Some("c(1,\n      2)".into()),
+        }];
         assert_eq!(signature("f", &formals).label, "f(x = c(1, 2))");
     }
 

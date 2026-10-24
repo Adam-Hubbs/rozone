@@ -8,12 +8,12 @@ use biome_rowan::TextSize;
 
 use crate::call::{IdentAt, Usage, call_at, ident_at, match_args};
 use crate::extract::{Definition, Formal, parse};
-use crate::roxygen::Block;
 use crate::manifest::Manifest;
+use crate::roxygen::Block;
 use crate::text::TextMap;
 use crate::{
-    FunctionSummary, Hover, HoverKind, ManifestError, ParameterInfo, Range, SignatureHelp, content_hash,
-    markdown,
+    FunctionSummary, Hover, HoverKind, ManifestError, ParameterInfo, Range, SignatureHelp,
+    content_hash, markdown,
 };
 
 /// Name lookups for one file, built on first use so that `update_file` only
@@ -53,9 +53,13 @@ impl FileEntry {
                     maps.by_rdname.entry(rdname.clone()).or_default().push(i);
                 }
                 if def.block_mentions(&self.text, "@describeIn")
-                    && let Some(describe) = def.block(&self.text).and_then(|b| b.describe_in.as_ref())
+                    && let Some(describe) =
+                        def.block(&self.text).and_then(|b| b.describe_in.as_ref())
                 {
-                    maps.by_describe.entry(describe.parent.clone()).or_default().push(i);
+                    maps.by_describe
+                        .entry(describe.parent.clone())
+                        .or_default()
+                        .push(i);
                 }
             }
             maps
@@ -152,10 +156,18 @@ impl Index {
         })
     }
 
-    fn hover_target<'a>(&'a self, path: &'a str, file: &'a FileEntry, ident: &IdentAt) -> Option<(DefRef<'a>, HoverKind)> {
+    fn hover_target<'a>(
+        &'a self,
+        path: &'a str,
+        file: &'a FileEntry,
+        ident: &IdentAt,
+    ) -> Option<(DefRef<'a>, HoverKind)> {
         match ident.usage {
             Usage::AssignTarget => {
-                let idx = file.defs.binary_search_by_key(&ident.range.start(), |d| d.name_range.start()).ok()?;
+                let idx = file
+                    .defs
+                    .binary_search_by_key(&ident.range.start(), |d| d.name_range.start())
+                    .ok()?;
                 let path = self.files.get_key_value(path)?.0.as_str();
                 Some((DefRef { path, file, idx }, HoverKind::Definition))
             }
@@ -174,13 +186,19 @@ impl Index {
         let signature = markdown::signature(&def.def().name, formals);
 
         let names: Vec<&str> = formals.iter().map(|f| f.name.as_str()).collect();
-        let active = match_args(&names, &site.arg_names).get(site.active_arg).copied().flatten();
+        let active = match_args(&names, &site.arg_names)
+            .get(site.active_arg)
+            .copied()
+            .flatten();
         Some(SignatureHelp {
             name: def.def().name.clone(),
             parameters: formals
                 .iter()
                 .zip(&signature.params)
-                .map(|(formal, &label)| ParameterInfo { label, documentation: markdown::param_doc(&doc, &formal.name) })
+                .map(|(formal, &label)| ParameterInfo {
+                    label,
+                    documentation: markdown::param_doc(&doc, &formal.name),
+                })
                 .collect(),
             label: signature.label,
             documentation: markdown::summary(&doc),
@@ -194,7 +212,12 @@ impl Index {
         let def = self.lookup(name, from_path)?;
         let doc = self.resolve(def)?;
         let signature = markdown::signature(&def.def().name, def.formals());
-        Some(markdown::page(&def.def().name, file_label(def.path), &signature.label, &doc))
+        Some(markdown::page(
+            &def.def().name,
+            file_label(def.path),
+            &signature.label,
+            &doc,
+        ))
     }
 
     /// Every documented function in the workspace, ordered by path and position.

@@ -81,7 +81,8 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn parse(json: &str) -> Result<Self, ManifestError> {
-        let value: serde_json::Value = serde_json::from_str(json).map_err(|e| ManifestError(e.to_string()))?;
+        let value: serde_json::Value =
+            serde_json::from_str(json).map_err(|e| ManifestError(e.to_string()))?;
         match value.get("version").and_then(serde_json::Value::as_u64) {
             Some(1) => {}
             Some(other) => return Err(ManifestError(format!("unsupported version {other}"))),
@@ -98,7 +99,14 @@ impl Manifest {
                         by_name.entry(name.clone()).or_insert(i);
                     }
                 }
-                (file.path, ManifestFile { content_hash: file.content_hash, topics: file.topics, by_name })
+                (
+                    file.path,
+                    ManifestFile {
+                        content_hash: file.content_hash,
+                        topics: file.topics,
+                        by_name,
+                    },
+                )
             })
             .collect();
         Ok(Self { files })
@@ -133,9 +141,18 @@ mod tests {
         )
         .unwrap();
         assert!(m.topic_for("/a.R", "abc", "wmean").is_some());
-        assert!(m.topic_for("/a.R", "abc", "wm").is_some(), "aliases resolve");
-        assert!(m.topic_for("/a.R", "other", "wmean").is_none(), "hash mismatch");
-        assert!(m.topic_for("/b.R", "abc", "wmean").is_none(), "unknown path");
+        assert!(
+            m.topic_for("/a.R", "abc", "wm").is_some(),
+            "aliases resolve"
+        );
+        assert!(
+            m.topic_for("/a.R", "other", "wmean").is_none(),
+            "hash mismatch"
+        );
+        assert!(
+            m.topic_for("/b.R", "abc", "wmean").is_none(),
+            "unknown path"
+        );
         assert!(m.topic_for("/a.R", "abc", "nope").is_none());
     }
 

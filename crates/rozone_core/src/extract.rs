@@ -39,7 +39,11 @@ impl Definition {
             .get_or_init(|| {
                 let span = self.block_span?;
                 let raw = text.get(usize::from(span.start())..usize::from(span.end()))?;
-                let lines: Vec<&str> = raw.lines().map(str::trim_start).filter(|l| l.starts_with('#')).collect();
+                let lines: Vec<&str> = raw
+                    .lines()
+                    .map(str::trim_start)
+                    .filter(|l| l.starts_with('#'))
+                    .collect();
                 Some(parse_block(&lines))
             })
             .as_ref()
@@ -68,7 +72,10 @@ pub fn parse(text: &str) -> Parsed {
         .filter_map(|stmt| stmt.as_r_expression_statement()?.expression().ok())
         .filter_map(|expr| definition(&expr))
         .collect();
-    Parsed { root: parse.syntax(), defs }
+    Parsed {
+        root: parse.syntax(),
+        defs,
+    }
 }
 
 /// `name <- function`, `name = function`, `name <<- function`, and the
@@ -107,13 +114,18 @@ fn function_of(mut expr: AnyRExpression) -> Option<RFunctionDefinition> {
 }
 
 fn formals(function: &RFunctionDefinition) -> Vec<Formal> {
-    let Ok(parameters) = function.parameters() else { return Vec::new() };
+    let Ok(parameters) = function.parameters() else {
+        return Vec::new();
+    };
     parameters
         .items()
         .iter()
         .filter_map(Result::ok)
         .map(|param| Formal {
-            name: param.name().map(|n| n.syntax().text_trimmed().to_string()).unwrap_or_default(),
+            name: param
+                .name()
+                .map(|n| n.syntax().text_trimmed().to_string())
+                .unwrap_or_default(),
             default: param
                 .default()
                 .and_then(|d| d.value().ok())
@@ -193,14 +205,27 @@ mod tests {
     #[test]
     fn formals_with_defaults() {
         let defs = defs("f <- function(x, w = rep(1, length(x)), ...) NULL");
-        let got: Vec<_> = defs[0].formals().iter().map(|f| (f.name.as_str(), f.default.as_deref())).collect();
-        assert_eq!(got, [("x", None), ("w", Some("rep(1, length(x))")), ("...", None)]);
+        let got: Vec<_> = defs[0]
+            .formals()
+            .iter()
+            .map(|f| (f.name.as_str(), f.default.as_deref()))
+            .collect();
+        assert_eq!(
+            got,
+            [("x", None), ("w", Some("rep(1, length(x))")), ("...", None)]
+        );
     }
 
     #[test]
     fn block_ends_at_blank_line() {
         assert!(block_of("#' Doc\n\nf <- function() 1\n").is_none());
-        assert_eq!(block_of("#' Doc\nf <- function() 1\n").unwrap().title.as_deref(), Some("Doc"));
+        assert_eq!(
+            block_of("#' Doc\nf <- function() 1\n")
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("Doc")
+        );
     }
 
     #[test]
@@ -211,7 +236,13 @@ mod tests {
 
     #[test]
     fn blank_line_inside_comments_restarts_block() {
-        assert_eq!(block_of("#' Old\n\n#' New\nf <- function() 1\n").unwrap().title.as_deref(), Some("New"));
+        assert_eq!(
+            block_of("#' Old\n\n#' New\nf <- function() 1\n")
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("New")
+        );
     }
 
     #[test]
@@ -237,6 +268,12 @@ mod tests {
 
     #[test]
     fn crlf_line_endings() {
-        assert_eq!(block_of("#' Doc\r\nf <- function() 1\r\n").unwrap().title.as_deref(), Some("Doc"));
+        assert_eq!(
+            block_of("#' Doc\r\nf <- function() 1\r\n")
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("Doc")
+        );
     }
 }

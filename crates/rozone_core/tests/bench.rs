@@ -48,7 +48,11 @@ fn large_file() {
 
     let start = Instant::now();
     let docs = index.documented_functions();
-    println!("documented_functions ({}): {:?}", docs.len(), start.elapsed());
+    println!(
+        "documented_functions ({}): {:?}",
+        docs.len(),
+        start.elapsed()
+    );
     assert_eq!(docs.len(), 4000);
 
     // The budget assumes the workspace release profile (opt-level 3); a

@@ -120,7 +120,9 @@ fn split_tags(bodies: &[String]) -> (Vec<&str>, Vec<RawTag>) {
 /// `@name rest`; `@@` is an escaped at-sign, not a tag.
 fn tag_start(line: &str) -> Option<(&str, &str)> {
     let rest = line.strip_prefix('@')?;
-    let end = rest.find(|c: char| !c.is_alphanumeric()).unwrap_or(rest.len());
+    let end = rest
+        .find(|c: char| !c.is_alphanumeric())
+        .unwrap_or(rest.len());
     if end == 0 {
         return None;
     }
@@ -134,20 +136,36 @@ fn tag_start(line: &str) -> Option<(&str, &str)> {
 /// The first line was already left-trimmed; later lines keep their indentation.
 fn join_content(lines: &[&str]) -> String {
     let joined = lines.join("\n");
-    joined.trim_start_matches(['\n', ' ', '\t']).trim_end().to_string()
+    joined
+        .trim_start_matches(['\n', ' ', '\t'])
+        .trim_end()
+        .to_string()
 }
 
 fn unescape(text: &str) -> String {
-    if text.contains("@@") { text.replace("@@", "@") } else { text.to_string() }
+    if text.contains("@@") {
+        text.replace("@@", "@")
+    } else {
+        text.to_string()
+    }
 }
 
 fn apply_intro(block: &mut Block, intro: &[&str]) {
     let paragraphs = paragraphs(intro);
     let mut paragraphs = paragraphs.into_iter();
     let text = |paragraph: Vec<&str>, sep: &str| unescape(paragraph.join(sep).trim());
-    block.title = paragraphs.next().map(|p| text(p, " ")).filter(|t| !t.is_empty());
-    block.description = paragraphs.next().map(|p| text(p, "\n")).filter(|t| !t.is_empty());
-    let details = paragraphs.map(|p| text(p, "\n")).collect::<Vec<_>>().join("\n\n");
+    block.title = paragraphs
+        .next()
+        .map(|p| text(p, " "))
+        .filter(|t| !t.is_empty());
+    block.description = paragraphs
+        .next()
+        .map(|p| text(p, "\n"))
+        .filter(|t| !t.is_empty());
+    let details = paragraphs
+        .map(|p| text(p, "\n"))
+        .collect::<Vec<_>>()
+        .join("\n\n");
     block.details = Some(details).filter(|t| !t.is_empty());
 }
 
@@ -178,7 +196,9 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
     let non_empty = || Some(content.to_string()).filter(|c| !c.is_empty());
     let words = || content.split_whitespace().map(str::to_string);
     match tag {
-        "title" => block.title = non_empty().map(|t| t.split_whitespace().collect::<Vec<_>>().join(" ")),
+        "title" => {
+            block.title = non_empty().map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        }
         "description" => block.description = non_empty(),
         "details" => block.details = non_empty(),
         "param" => {
@@ -189,7 +209,10 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
                 .filter(|name| !name.is_empty())
                 .collect();
             if !names.is_empty() && !text.is_empty() {
-                block.params.push(ParamDoc { names, text: text.to_string() });
+                block.params.push(ParamDoc {
+                    names,
+                    text: text.to_string(),
+                });
             }
         }
         "return" | "returns" => {
@@ -198,10 +221,19 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
             }
         }
         "examples" => block.examples = non_empty(),
-        "example" => block.example_files.extend(content.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string)),
+        "example" => block.example_files.extend(
+            content
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_string),
+        ),
         "section" => {
             if let Some((title, text)) = content.split_once(':') {
-                block.sections.push(Section { title: title.trim().to_string(), text: text.trim().to_string() });
+                block.sections.push(Section {
+                    title: title.trim().to_string(),
+                    text: text.trim().to_string(),
+                });
             }
         }
         "seealso" => block.seealso = non_empty(),
@@ -210,7 +242,10 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
         "inherit" => {
             let mut words = words();
             if let Some(source) = words.next() {
-                block.inherit.push(Inherit { source, fields: words.collect() });
+                block.inherit.push(Inherit {
+                    source,
+                    fields: words.collect(),
+                });
             }
         }
         "inheritDotParams" => block.inherit_dots.extend(words().next()),
@@ -218,7 +253,10 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
         "describeIn" => {
             let (parent, description) = split_first_word(content);
             if !parent.is_empty() {
-                block.describe_in = Some(DescribeIn { parent: parent.to_string(), description: description.to_string() });
+                block.describe_in = Some(DescribeIn {
+                    parent: parent.to_string(),
+                    description: description.to_string(),
+                });
             }
         }
         "rdname" => block.rdname = words().next(),
@@ -249,15 +287,32 @@ mod tests {
 
     #[test]
     fn intro_paragraphs() {
-        let block = parse(&["#' Title here", "#' continues", "#'", "#' Description.", "#'", "#' Details one.", "#'", "#' Details two."]);
+        let block = parse(&[
+            "#' Title here",
+            "#' continues",
+            "#'",
+            "#' Description.",
+            "#'",
+            "#' Details one.",
+            "#'",
+            "#' Details two.",
+        ]);
         assert_eq!(block.title.as_deref(), Some("Title here continues"));
         assert_eq!(block.description.as_deref(), Some("Description."));
-        assert_eq!(block.details.as_deref(), Some("Details one.\n\nDetails two."));
+        assert_eq!(
+            block.details.as_deref(),
+            Some("Details one.\n\nDetails two.")
+        );
     }
 
     #[test]
     fn explicit_tags_override_intro() {
-        let block = parse(&["#' @title T", "#' @description D", "#'   more", "#' @details X"]);
+        let block = parse(&[
+            "#' @title T",
+            "#' @description D",
+            "#'   more",
+            "#' @details X",
+        ]);
         assert_eq!(block.title.as_deref(), Some("T"));
         assert_eq!(block.description.as_deref(), Some("D\n  more"));
         assert_eq!(block.details.as_deref(), Some("X"));
@@ -281,8 +336,18 @@ mod tests {
 
     #[test]
     fn section_splits_at_first_colon() {
-        let block = parse(&["#' @section Warning:", "#' Do not: run.", "#' @section Bad title no colon"]);
-        assert_eq!(block.sections, [Section { title: "Warning".into(), text: "Do not: run.".into() }]);
+        let block = parse(&[
+            "#' @section Warning:",
+            "#' Do not: run.",
+            "#' @section Bad title no colon",
+        ]);
+        assert_eq!(
+            block.sections,
+            [Section {
+                title: "Warning".into(),
+                text: "Do not: run.".into()
+            }]
+        );
     }
 
     #[test]
@@ -308,16 +373,35 @@ mod tests {
             "#' @rdname page",
         ]);
         assert_eq!(block.inherit_params, ["a", "dplyr::mutate"]);
-        assert_eq!(block.inherit, [Inherit { source: "b".into(), fields: vec!["params".into(), "title".into()] }]);
+        assert_eq!(
+            block.inherit,
+            [Inherit {
+                source: "b".into(),
+                fields: vec!["params".into(), "title".into()]
+            }]
+        );
         assert_eq!(block.inherit_dots, ["c"]);
         assert_eq!(block.inherit_sections, ["d"]);
-        assert_eq!(block.describe_in, Some(DescribeIn { parent: "p".into(), description: "Does a thing".into() }));
+        assert_eq!(
+            block.describe_in,
+            Some(DescribeIn {
+                parent: "p".into(),
+                description: "Does a thing".into()
+            })
+        );
         assert_eq!(block.rdname.as_deref(), Some("page"));
     }
 
     #[test]
     fn flags_and_unknown_tags() {
-        let block = parse(&["#' @export", "#' @noRd", "#' @md", "#' @keywords internal x", "#' @wat 1", "#' @template tpl"]);
+        let block = parse(&[
+            "#' @export",
+            "#' @noRd",
+            "#' @md",
+            "#' @keywords internal x",
+            "#' @wat 1",
+            "#' @template tpl",
+        ]);
         assert!(block.export && block.no_rd);
         assert_eq!(block.md, Some(true));
         assert_eq!(block.keywords, ["internal", "x"]);
@@ -340,7 +424,9 @@ mod tests {
 
     #[test]
     fn code_fence_blank_lines_do_not_split() {
-        let block = parse(&["#' T", "#'", "#' D", "#'", "#' ```r", "#' a", "#'", "#' b", "#' ```"]);
+        let block = parse(&[
+            "#' T", "#'", "#' D", "#'", "#' ```r", "#' a", "#'", "#' b", "#' ```",
+        ]);
         assert_eq!(block.details.as_deref(), Some("```r\na\n\nb\n```"));
     }
 

@@ -45,20 +45,32 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
             RSyntaxKind::R_NAMESPACE_EXPRESSION
             | RSyntaxKind::R_ARGUMENT_NAME_CLAUSE
             | RSyntaxKind::R_PARAMETER => return None,
-            RSyntaxKind::R_EXTRACT_EXPRESSION if parent.last_child().as_ref() == Some(&node) => return None,
+            RSyntaxKind::R_EXTRACT_EXPRESSION if parent.last_child().as_ref() == Some(&node) => {
+                return None;
+            }
             RSyntaxKind::R_BINARY_EXPRESSION => binary_usage(&parent, &node),
             _ => Usage::Bare,
         },
     };
-    Some(IdentAt { name: unquote(token.text_trimmed()), range: token.text_trimmed_range(), usage })
+    Some(IdentAt {
+        name: unquote(token.text_trimmed()),
+        range: token.text_trimmed_range(),
+        usage,
+    })
 }
 
 fn binary_usage(binary: &RSyntaxNode, ident: &RSyntaxNode) -> Usage {
-    let Some(op) = operator_of(binary) else { return Usage::Bare };
+    let Some(op) = operator_of(binary) else {
+        return Usage::Bare;
+    };
     let is_left = binary.first_child().as_ref() == Some(ident);
     match op.kind() {
-        RSyntaxKind::ASSIGN | RSyntaxKind::SUPER_ASSIGN | RSyntaxKind::EQUAL if is_left => Usage::AssignTarget,
-        RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT if !is_left => Usage::AssignTarget,
+        RSyntaxKind::ASSIGN | RSyntaxKind::SUPER_ASSIGN | RSyntaxKind::EQUAL if is_left => {
+            Usage::AssignTarget
+        }
+        RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT if !is_left => {
+            Usage::AssignTarget
+        }
         _ => Usage::Bare,
     }
 }
@@ -89,21 +101,31 @@ pub fn call_at(root: &RSyntaxNode, offset: TextSize) -> Option<CallSite> {
         TokenAtOffset::Single(token) => token,
         TokenAtOffset::Between(left, _) => left,
     };
-    let token = if token.kind() == RSyntaxKind::EOF { token.prev_token()? } else { token };
-    let args = token
-        .ancestors()
-        .find(|node| node.kind() == RSyntaxKind::R_CALL_ARGUMENTS && contains_cursor(node, offset))?;
+    let token = if token.kind() == RSyntaxKind::EOF {
+        token.prev_token()?
+    } else {
+        token
+    };
+    let args = token.ancestors().find(|node| {
+        node.kind() == RSyntaxKind::R_CALL_ARGUMENTS && contains_cursor(node, offset)
+    })?;
     let call = args.parent().filter(|n| n.kind() == RSyntaxKind::R_CALL)?;
-    let callee = call.first_child().filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+    let callee = call
+        .first_child()
+        .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
 
-    let list = args.children().find(|n| n.kind() == RSyntaxKind::R_ARGUMENT_LIST);
+    let list = args
+        .children()
+        .find(|n| n.kind() == RSyntaxKind::R_ARGUMENT_LIST);
     let mut slots = Vec::new();
     let mut commas_before = 0;
     if let Some(list) = &list {
         for element in list.children_with_tokens() {
             match element {
                 NodeOrToken::Node(arg) => slots.push(arg),
-                NodeOrToken::Token(comma) => commas_before += usize::from(comma.text_trimmed_range().end() <= offset),
+                NodeOrToken::Token(comma) => {
+                    commas_before += usize::from(comma.text_trimmed_range().end() <= offset)
+                }
             }
         }
     }
@@ -142,7 +164,9 @@ fn contains_cursor(args: &RSyntaxNode, offset: TextSize) -> bool {
 }
 
 fn argument_name(arg: &RSyntaxNode) -> Option<String> {
-    let clause = arg.first_child().filter(|n| n.kind() == RSyntaxKind::R_ARGUMENT_NAME_CLAUSE)?;
+    let clause = arg
+        .first_child()
+        .filter(|n| n.kind() == RSyntaxKind::R_ARGUMENT_NAME_CLAUSE)?;
     let name = clause.first_child()?;
     let text = name.text_trimmed().to_string();
     let trimmed = text
@@ -154,15 +178,20 @@ fn argument_name(arg: &RSyntaxNode) -> Option<String> {
 }
 
 fn argument_value(arg: &RSyntaxNode) -> Option<RSyntaxNode> {
-    arg.children().find(|n| n.kind() != RSyntaxKind::R_ARGUMENT_NAME_CLAUSE)
+    arg.children()
+        .find(|n| n.kind() != RSyntaxKind::R_ARGUMENT_NAME_CLAUSE)
 }
 
 /// `lhs |> f(args)` and `lhs %>% f(args)` pass `lhs` as the first positional
 /// argument unless the placeholder (`_` / `.`) says where it goes.
 fn pipe_injects_lhs(call: &RSyntaxNode, slots: &[RSyntaxNode]) -> bool {
-    let Some(binary) = call.parent().and_then(RBinaryExpression::cast) else { return false };
+    let Some(binary) = call.parent().and_then(RBinaryExpression::cast) else {
+        return false;
+    };
     let is_rhs = binary.right().is_ok_and(|right| right.syntax() == call);
-    let Ok(op) = binary.operator() else { return false };
+    let Ok(op) = binary.operator() else {
+        return false;
+    };
     if !is_rhs {
         return false;
     }
@@ -203,7 +232,8 @@ pub fn match_args<F: AsRef<str>>(formals: &[F], args: &[Option<String>]) -> Vec<
         if bound[i].is_some() || name.is_empty() {
             continue;
         }
-        let mut candidates = (0..partial_limit).filter(|&j| !taken[j] && formals[j].as_ref().starts_with(name.as_str()));
+        let mut candidates = (0..partial_limit)
+            .filter(|&j| !taken[j] && formals[j].as_ref().starts_with(name.as_str()));
         if let (Some(j), None) = (candidates.next(), candidates.next()) {
             bound[i] = Some(j);
             taken[j] = true;
@@ -243,7 +273,9 @@ mod tests {
     use super::*;
 
     fn names(args: &[&str]) -> Vec<Option<String>> {
-        args.iter().map(|a| (!a.is_empty()).then(|| a.to_string())).collect()
+        args.iter()
+            .map(|a| (!a.is_empty()).then(|| a.to_string()))
+            .collect()
     }
 
     fn matched(formals: &[&str], args: &[&str]) -> Vec<Option<usize>> {
@@ -253,19 +285,32 @@ mod tests {
     #[test]
     fn positional() {
         assert_eq!(matched(&["x", "w"], &["", ""]), [Some(0), Some(1)]);
-        assert_eq!(matched(&["x", "w"], &["", "", ""]), [Some(0), Some(1), None]);
+        assert_eq!(
+            matched(&["x", "w"], &["", "", ""]),
+            [Some(0), Some(1), None]
+        );
     }
 
     #[test]
     fn exact_names_take_precedence_over_position() {
-        assert_eq!(matched(&["x", "w", "na.rm"], &["w", ""]), [Some(1), Some(0)]);
-        assert_eq!(matched(&["x", "w", "na.rm"], &["", "x"]), [Some(1), Some(0)]);
+        assert_eq!(
+            matched(&["x", "w", "na.rm"], &["w", ""]),
+            [Some(1), Some(0)]
+        );
+        assert_eq!(
+            matched(&["x", "w", "na.rm"], &["", "x"]),
+            [Some(1), Some(0)]
+        );
     }
 
     #[test]
     fn partial_names() {
         assert_eq!(matched(&["x", "na.rm", "names"], &["na."]), [Some(1)]);
-        assert_eq!(matched(&["x", "na.rm", "names"], &["n"]), [None], "ambiguous partial");
+        assert_eq!(
+            matched(&["x", "na.rm", "names"], &["n"]),
+            [None],
+            "ambiguous partial"
+        );
         assert_eq!(matched(&["x", "na.rm", "names"], &["nam"]), [Some(2)]);
     }
 
@@ -284,8 +329,14 @@ mod tests {
     #[test]
     fn dots_absorb_extra_positionals() {
         let formals = ["x", "...", "na.rm"];
-        assert_eq!(matched(&formals, &["", "", "", ""]), [Some(0), Some(1), Some(1), Some(1)]);
-        assert_eq!(matched(&formals, &["", "", "na.rm"]), [Some(0), Some(1), Some(2)]);
+        assert_eq!(
+            matched(&formals, &["", "", "", ""]),
+            [Some(0), Some(1), Some(1), Some(1)]
+        );
+        assert_eq!(
+            matched(&formals, &["", "", "na.rm"]),
+            [Some(0), Some(1), Some(2)]
+        );
     }
 
     #[test]
@@ -296,12 +347,18 @@ mod tests {
 
     #[test]
     fn positional_skips_names_already_taken() {
-        assert_eq!(matched(&["x", "y", "z"], &["y", "", ""]), [Some(1), Some(0), Some(2)]);
+        assert_eq!(
+            matched(&["x", "y", "z"], &["y", "", ""]),
+            [Some(1), Some(0), Some(2)]
+        );
     }
 
     #[test]
     fn leading_dots_swallow_all_positionals() {
-        assert_eq!(matched(&["...", "sep"], &["", "", "sep"]), [Some(0), Some(0), Some(1)]);
+        assert_eq!(
+            matched(&["...", "sep"], &["", "", "sep"]),
+            [Some(0), Some(0), Some(1)]
+        );
     }
 
     #[test]
@@ -324,7 +381,10 @@ mod tests {
     #[test]
     fn call_site_basics() {
         let s = site("wm(x, w¦)").unwrap();
-        assert_eq!((s.callee.as_str(), s.active_arg, s.arg_names.len()), ("wm", 1, 2));
+        assert_eq!(
+            (s.callee.as_str(), s.active_arg, s.arg_names.len()),
+            ("wm", 1, 2)
+        );
     }
 
     #[test]
@@ -394,7 +454,10 @@ mod tests {
         };
         assert_eq!(at("wm¦ean(1)"), Some(("wmean".into(), Usage::Callee)));
         assert_eq!(at("map(xs, wm¦ean)"), Some(("wmean".into(), Usage::Bare)));
-        assert_eq!(at("wm¦ean <- function() 1"), Some(("wmean".into(), Usage::AssignTarget)));
+        assert_eq!(
+            at("wm¦ean <- function() 1"),
+            Some(("wmean".into(), Usage::AssignTarget))
+        );
         assert_eq!(at("pkg::wm¦ean(1)"), None);
         assert_eq!(at("x$wm¦ean(1)"), None);
         assert_eq!(at("x@wm¦ean"), None);

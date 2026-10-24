@@ -59,13 +59,20 @@ impl Resolved {
         resolved.details = present(&topic.details_md);
         resolved.returns = present(&topic.returns_md);
         resolved.examples = present(&topic.examples);
-        resolved.sections = topic.sections.iter().map(|s| (s.title.clone(), s.md.clone())).collect();
+        resolved.sections = topic
+            .sections
+            .iter()
+            .map(|s| (s.title.clone(), s.md.clone()))
+            .collect();
         resolved.inherited_from = topic.inherited_from.clone();
         resolved.params = def
             .formals()
             .iter()
             .filter_map(|formal| {
-                let param = topic.params.iter().find(|p| p.name == formal.name && !p.md.trim().is_empty())?;
+                let param = topic
+                    .params
+                    .iter()
+                    .find(|p| p.name == formal.name && !p.md.trim().is_empty())?;
                 Some((formal.name.clone(), param.md.clone()))
             })
             .collect();
@@ -108,15 +115,28 @@ impl Index {
         }
         let block = def.block().filter(|b| b.has_content())?;
         let direct = block.title.clone().or_else(|| {
-            block.describe_in.as_ref().map(|d| d.description.clone()).filter(|d| !d.is_empty())
+            block
+                .describe_in
+                .as_ref()
+                .map(|d| d.description.clone())
+                .filter(|d| !d.is_empty())
         });
         if direct.is_some() || (block.inherit.is_empty() && block.rdname.is_none()) {
             return Some(direct);
         }
-        Some(self.resolve_static(def, block, &mut Walk::default(), false).title)
+        Some(
+            self.resolve_static(def, block, &mut Walk::default(), false)
+                .title,
+        )
     }
 
-    fn resolve_static<'a>(&'a self, def: DefRef<'a>, block: &'a Block, walk: &mut Walk<'a>, with_params: bool) -> Resolved {
+    fn resolve_static<'a>(
+        &'a self,
+        def: DefRef<'a>,
+        block: &'a Block,
+        walk: &mut Walk<'a>,
+        with_params: bool,
+    ) -> Resolved {
         let mut resolved = Resolved::empty(DocSource::Static);
         let key = def.key();
         if walk.fields.contains(&key) {
@@ -128,10 +148,15 @@ impl Index {
         let blocks: Vec<&Block> = std::iter::once(block)
             .chain(field_peers.iter().filter_map(|peer| peer.block()))
             .collect();
-        let pick = |field: fn(&Block) -> Option<&String>| blocks.iter().find_map(|b| field(b)).cloned();
+        let pick =
+            |field: fn(&Block) -> Option<&String>| blocks.iter().find_map(|b| field(b)).cloned();
 
         resolved.title = pick(|b| b.title.as_ref()).or_else(|| {
-            block.describe_in.as_ref().map(|d| d.description.clone()).filter(|d| !d.is_empty())
+            block
+                .describe_in
+                .as_ref()
+                .map(|d| d.description.clone())
+                .filter(|d| !d.is_empty())
         });
         resolved.description = pick(|b| b.description.as_ref());
         resolved.details = pick(|b| b.details.as_ref());
@@ -139,10 +164,20 @@ impl Index {
         resolved.examples = pick(|b| b.examples.as_ref());
         resolved.seealso = pick(|b| b.seealso.as_ref());
         resolved.family = pick(|b| b.family.as_ref());
-        resolved.example_files = blocks.iter().find(|b| !b.example_files.is_empty()).map(|b| b.example_files.clone()).unwrap_or_default();
+        resolved.example_files = blocks
+            .iter()
+            .find(|b| !b.example_files.is_empty())
+            .map(|b| b.example_files.clone())
+            .unwrap_or_default();
         for section in blocks.iter().flat_map(|b| &b.sections) {
-            if !resolved.sections.iter().any(|(title, _)| *title == section.title) {
-                resolved.sections.push((section.title.clone(), section.text.clone()));
+            if !resolved
+                .sections
+                .iter()
+                .any(|(title, _)| *title == section.title)
+            {
+                resolved
+                    .sections
+                    .push((section.title.clone(), section.text.clone()));
             }
         }
 
@@ -150,7 +185,9 @@ impl Index {
             self.apply_inherit(def, &inherit.source, &inherit.fields, &mut resolved, walk);
         }
         for source in &block.inherit_sections {
-            resolved.notes.push(format!("Also inherits sections from `{source}`."));
+            resolved
+                .notes
+                .push(format!("Also inherits sections from `{source}`."));
         }
 
         if with_params {
@@ -158,7 +195,9 @@ impl Index {
             resolved.params = def
                 .formals()
                 .iter()
-                .filter_map(|formal| Some((formal.name.clone(), documented.get(&formal.name)?.clone())))
+                .filter_map(|formal| {
+                    Some((formal.name.clone(), documented.get(&formal.name)?.clone()))
+                })
                 .collect();
         }
 
@@ -167,16 +206,33 @@ impl Index {
         resolved
     }
 
-    fn apply_inherit<'a>(&'a self, def: DefRef<'a>, source: &str, fields: &[String], resolved: &mut Resolved, walk: &mut Walk<'a>) {
-        let wants = |names: &[&str]| fields.is_empty() || fields.iter().any(|f| names.contains(&f.as_str()));
+    fn apply_inherit<'a>(
+        &'a self,
+        def: DefRef<'a>,
+        source: &str,
+        fields: &[String],
+        resolved: &mut Resolved,
+        walk: &mut Walk<'a>,
+    ) {
+        let wants = |names: &[&str]| {
+            fields.is_empty() || fields.iter().any(|f| names.contains(&f.as_str()))
+        };
         let Some(src_def) = self.source_def(source, def.path) else {
-            if fields.is_empty() || fields.iter().any(|f| !matches!(f.as_str(), "params" | "param")) {
+            if fields.is_empty()
+                || fields
+                    .iter()
+                    .any(|f| !matches!(f.as_str(), "params" | "param"))
+            {
                 resolved.inherited_from.push(source.to_string());
-                resolved.notes.push(format!("Inherits documentation from `{source}`."));
+                resolved
+                    .notes
+                    .push(format!("Inherits documentation from `{source}`."));
             }
             return;
         };
-        let Some(src_block) = src_def.block() else { return };
+        let Some(src_block) = src_def.block() else {
+            return;
+        };
         let src = self.resolve_static(src_def, src_block, walk, false);
         let fill = |target: &mut Option<String>, from: Option<String>, names: &[&str]| {
             if target.is_none() && wants(names) {
@@ -191,7 +247,11 @@ impl Index {
         fill(&mut resolved.examples, src.examples, &["examples"]);
         if wants(&["sections"]) {
             for section in src.sections {
-                if !resolved.sections.iter().any(|(title, _)| *title == section.0) {
+                if !resolved
+                    .sections
+                    .iter()
+                    .any(|(title, _)| *title == section.0)
+                {
                     resolved.sections.push(section);
                 }
             }
@@ -212,7 +272,11 @@ impl Index {
         documented
     }
 
-    fn collect_params<'a>(&'a self, def: DefRef<'a>, walk: &mut Walk<'a>) -> HashMap<String, String> {
+    fn collect_params<'a>(
+        &'a self,
+        def: DefRef<'a>,
+        walk: &mut Walk<'a>,
+    ) -> HashMap<String, String> {
         let (members, _) = self.peers(def);
         let blocks: Vec<&Block> = def
             .block()
@@ -222,20 +286,32 @@ impl Index {
         let mut documented: HashMap<String, String> = HashMap::new();
         for param in blocks.iter().flat_map(|b| &b.params) {
             for name in &param.names {
-                documented.entry(name.clone()).or_insert_with(|| param.text.clone());
+                documented
+                    .entry(name.clone())
+                    .or_insert_with(|| param.text.clone());
             }
         }
 
         let formals = def.formals();
-        let missing = |documented: &HashMap<String, String>| formals.iter().any(|f| !documented.contains_key(&f.name));
+        let missing = |documented: &HashMap<String, String>| {
+            formals.iter().any(|f| !documented.contains_key(&f.name))
+        };
         let mut pointers: Vec<&str> = Vec::new();
         let sources = blocks.iter().flat_map(|b| {
             let from_inherit = b
                 .inherit
                 .iter()
-                .filter(|i| i.fields.is_empty() || i.fields.iter().any(|f| matches!(f.as_str(), "params" | "param")))
+                .filter(|i| {
+                    i.fields.is_empty()
+                        || i.fields
+                            .iter()
+                            .any(|f| matches!(f.as_str(), "params" | "param"))
+                })
                 .map(|i| i.source.as_str());
-            b.inherit_params.iter().map(String::as_str).chain(from_inherit)
+            b.inherit_params
+                .iter()
+                .map(String::as_str)
+                .chain(from_inherit)
         });
         for source in sources {
             if !missing(&documented) {
@@ -246,7 +322,9 @@ impl Index {
                     let inherited = self.params_of(src_def, walk);
                     for formal in formals {
                         if let Some(text) = inherited.get(&formal.name) {
-                            documented.entry(formal.name.clone()).or_insert_with(|| text.clone());
+                            documented
+                                .entry(formal.name.clone())
+                                .or_insert_with(|| text.clone());
                         }
                     }
                 }
@@ -259,9 +337,15 @@ impl Index {
                 .or_insert_with(|| format!("Arguments passed on to `{source}`."));
         }
         if !pointers.is_empty() {
-            let from = pointers.iter().map(|p| format!("`{p}`")).collect::<Vec<_>>().join(" or ");
+            let from = pointers
+                .iter()
+                .map(|p| format!("`{p}`"))
+                .collect::<Vec<_>>()
+                .join(" or ");
             for formal in formals {
-                documented.entry(formal.name.clone()).or_insert_with(|| format!("Inherited from {from}."));
+                documented
+                    .entry(formal.name.clone())
+                    .or_insert_with(|| format!("Inherited from {from}."));
             }
         }
         documented
@@ -280,13 +364,17 @@ impl Index {
     /// parent's page, else its own name.
     fn page_of(&self, def: DefRef<'_>, depth: u8) -> String {
         let definition = def.def();
-        let Some(block) = def.block() else { return definition.name.clone() };
+        let Some(block) = def.block() else {
+            return definition.name.clone();
+        };
         if let Some(rdname) = &block.rdname {
             return rdname.clone();
         }
         if let Some(describe) = &block.describe_in {
             if depth < 8
-                && let Some(parent) = self.lookup(&describe.parent, Some(def.path)).filter(|p| p.key() != def.key())
+                && let Some(parent) = self
+                    .lookup(&describe.parent, Some(def.path))
+                    .filter(|p| p.key() != def.key())
             {
                 return self.page_of(parent, depth + 1);
             }
@@ -324,15 +412,35 @@ impl Index {
             let mut candidates: Vec<(&'a String, &'a crate::index::FileEntry, usize)> = Vec::new();
             for (path, file) in self.files() {
                 let maps = file.maps();
-                candidates.extend(maps.by_rdname.get(page).into_iter().flatten().map(|&i| (path, file, i)));
+                candidates.extend(
+                    maps.by_rdname
+                        .get(page)
+                        .into_iter()
+                        .flatten()
+                        .map(|&i| (path, file, i)),
+                );
                 for parent in &parents {
-                    candidates.extend(maps.by_name.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
-                    candidates.extend(maps.by_describe.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
+                    candidates.extend(
+                        maps.by_name
+                            .get(parent.as_str())
+                            .into_iter()
+                            .flatten()
+                            .map(|&i| (path, file, i)),
+                    );
+                    candidates.extend(
+                        maps.by_describe
+                            .get(parent.as_str())
+                            .into_iter()
+                            .flatten()
+                            .map(|&i| (path, file, i)),
+                    );
                 }
             }
             for (path, file, idx) in candidates {
                 let candidate = DefRef { path, file, idx };
-                if !members.iter().any(|m| m.key() == candidate.key()) && self.page_of(candidate, 0) == page {
+                if !members.iter().any(|m| m.key() == candidate.key())
+                    && self.page_of(candidate, 0) == page
+                {
                     members.push(candidate);
                 }
             }
@@ -343,23 +451,43 @@ impl Index {
         }
         members.sort_by(|a, b| {
             let primary = |m: &DefRef<'_>| m.def().name != page;
-            (primary(a), a.path, a.def().name_range.start()).cmp(&(primary(b), b.path, b.def().name_range.start()))
+            (primary(a), a.path, a.def().name_range.start()).cmp(&(
+                primary(b),
+                b.path,
+                b.def().name_range.start(),
+            ))
         });
         members
     }
 
     fn related_lines(&self, def: DefRef<'_>, block: &Block, members: &[DefRef<'_>]) -> Vec<String> {
         if let Some(describe) = &block.describe_in {
-            return vec![format!("*Part of the documentation of `{}()`.*", describe.parent)];
+            return vec![format!(
+                "*Part of the documentation of `{}()`.*",
+                describe.parent
+            )];
         }
-        let mut names: Vec<&str> = members.iter().map(|m| m.def().name.as_str()).filter(|n| *n != def.def().name).collect();
+        let mut names: Vec<&str> = members
+            .iter()
+            .map(|m| m.def().name.as_str())
+            .filter(|n| *n != def.def().name)
+            .collect();
         names.dedup();
         if names.is_empty() {
             return Vec::new();
         }
         let more = names.len().saturating_sub(MAX_RELATED);
-        let listed = names.iter().take(MAX_RELATED).map(|n| format!("`{n}()`")).collect::<Vec<_>>().join(", ");
-        let tail = if more > 0 { format!(" and {more} more") } else { String::new() };
+        let listed = names
+            .iter()
+            .take(MAX_RELATED)
+            .map(|n| format!("`{n}()`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let tail = if more > 0 {
+            format!(" and {more} more")
+        } else {
+            String::new()
+        };
         vec![format!("*Shares its help page with {listed}{tail}.*")]
     }
 }

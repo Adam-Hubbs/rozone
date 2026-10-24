@@ -53,7 +53,12 @@ fn fmt_hover(out: &mut String, hover: Option<&Hover>) {
     match hover {
         None => out.push_str("hover: none\n"),
         Some(h) => {
-            writeln!(out, "hover: {:?} {} range={}..{} source={:?}", h.kind, h.name, h.range.start, h.range.end, h.source).unwrap();
+            writeln!(
+                out,
+                "hover: {:?} {} range={}..{} source={:?}",
+                h.kind, h.name, h.range.start, h.range.end, h.source
+            )
+            .unwrap();
             for line in h.markdown.lines() {
                 writeln!(out, "  | {line}").unwrap();
             }
@@ -68,7 +73,10 @@ fn fmt_signature(out: &mut String, help: Option<&SignatureHelp>) {
             let units: Vec<u16> = s.label.encode_utf16().collect();
             let active = s.active_parameter.map_or("null".to_string(), |i| {
                 let [start, end] = s.parameters[i as usize].label;
-                format!("{i} ({})", String::from_utf16_lossy(&units[start as usize..end as usize]))
+                format!(
+                    "{i} ({})",
+                    String::from_utf16_lossy(&units[start as usize..end as usize])
+                )
             });
             writeln!(out, "signature: {} active={active}", s.label).unwrap();
         }
@@ -86,7 +94,12 @@ pub fn report(name: &str) -> String {
     let mut out = String::new();
     out.push_str("# documented functions\n");
     for f in index.documented_functions() {
-        writeln!(out, "{} {}..{} title={:?}", f.name, f.range.start, f.range.end, f.title).unwrap();
+        writeln!(
+            out,
+            "{} {}..{} title={:?}",
+            f.name, f.range.start, f.range.end, f.title
+        )
+        .unwrap();
     }
     for f in index.documented_functions() {
         writeln!(out, "\n# documentation({})", f.name).unwrap();

@@ -21,7 +21,11 @@ impl TextMap {
     pub fn new(text: &str) -> Self {
         let len8 = text.len() as u32;
         if text.is_ascii() {
-            return Self { wide: Vec::new(), len8, len16: len8 };
+            return Self {
+                wide: Vec::new(),
+                len8,
+                len16: len8,
+            };
         }
         let mut wide = Vec::new();
         let mut delta = 0u32;
@@ -30,10 +34,19 @@ impl TextMap {
                 continue;
             }
             let (l8, l16) = (ch.len_utf8() as u32, ch.len_utf16() as u32);
-            wide.push(Wide { byte: byte as u32, utf16: byte as u32 - delta, len8: l8 as u8, len16: l16 as u8 });
+            wide.push(Wide {
+                byte: byte as u32,
+                utf16: byte as u32 - delta,
+                len8: l8 as u8,
+                len16: l16 as u8,
+            });
             delta += l8 - l16;
         }
-        Self { wide, len8, len16: len8 - delta }
+        Self {
+            wide,
+            len8,
+            len16: len8 - delta,
+        }
     }
 
     pub fn len16(&self) -> u32 {

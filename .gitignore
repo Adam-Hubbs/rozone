@@ -11,3 +11,4 @@ editors/code/wasm/
 fuzz/corpus/
 fuzz/artifacts/
 fuzz/target/
+*.log

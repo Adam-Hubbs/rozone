@@ -5,7 +5,11 @@
 /// whitespace character, or `None` for any other line. Like roxygen2 (and
 /// unlike the R spike) this also accepts `##'`; those lines are stripped too.
 pub fn roxygen_body(line: &str) -> Option<&str> {
-    let rest = line.trim_start().strip_prefix('#')?.trim_start_matches('#').strip_prefix('\'')?;
+    let rest = line
+        .trim_start()
+        .strip_prefix('#')?
+        .trim_start_matches('#')
+        .strip_prefix('\'')?;
     let mut chars = rest.chars();
     Some(match chars.next() {
         Some(c) if c.is_whitespace() => chars.as_str(),
@@ -38,7 +42,11 @@ pub fn strip_r_code<S: AsRef<str>>(lines: &[S]) -> Vec<String> {
         let starts_tag = body.starts_with('@');
         let is_fence = body.starts_with("```");
         state = if state == State::Fence {
-            if is_fence { State::FenceEnd } else { State::Fence }
+            if is_fence {
+                State::FenceEnd
+            } else {
+                State::Fence
+            }
         } else if opens_r_fence(body) {
             State::Fence
         } else if starts_eval(body) || (state == State::Eval && !starts_tag) {
@@ -75,11 +83,15 @@ fn opens_r_fence(body: &str) -> bool {
 
 /// `^@(eval(Rd|Namespace)?|includeRmd)\b`
 fn starts_eval(body: &str) -> bool {
-    let Some(tag) = body.strip_prefix('@') else { return false };
-    ["evalRd", "evalNamespace", "eval", "includeRmd"].iter().any(|name| {
-        tag.strip_prefix(name)
-            .is_some_and(|after| !after.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
-    })
+    let Some(tag) = body.strip_prefix('@') else {
+        return false;
+    };
+    ["evalRd", "evalNamespace", "eval", "includeRmd"]
+        .iter()
+        .any(|name| {
+            tag.strip_prefix(name)
+                .is_some_and(|after| !after.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+        })
 }
 
 #[cfg(test)]
@@ -92,9 +104,15 @@ mod tests {
 
     #[test]
     fn inline_r_is_removed_in_place() {
-        assert_eq!(strip(&["#' Today is `r Sys.Date()` ok"]), ["#' Today is  ok"]);
+        assert_eq!(
+            strip(&["#' Today is `r Sys.Date()` ok"]),
+            ["#' Today is  ok"]
+        );
         assert_eq!(strip(&["#' `r 1` and `r 2`"]), ["#'  and "]);
-        assert_eq!(strip(&["#' keep `r` and `rx 1` and `code`"]), ["#' keep `r` and `rx 1` and `code`"]);
+        assert_eq!(
+            strip(&["#' keep `r` and `rx 1` and `code`"]),
+            ["#' keep `r` and `rx 1` and `code`"]
+        );
     }
 
     #[test]
@@ -109,7 +127,13 @@ mod tests {
 
     #[test]
     fn r_fences_removed_through_closing_fence() {
-        let lines = ["#' before", "#' ```{r}", "#' system('x')", "#' ```", "#' after"];
+        let lines = [
+            "#' before",
+            "#' ```{r}",
+            "#' system('x')",
+            "#' ```",
+            "#' after",
+        ];
         assert_eq!(strip(&lines), ["#' before", "#' after"]);
         let lines = ["#' ```{r, echo = FALSE}", "#' x", "#' ```", "#' after"];
         assert_eq!(strip(&lines), ["#' after"]);
@@ -125,18 +149,37 @@ mod tests {
 
     #[test]
     fn unterminated_fence_drops_rest_of_block() {
-        assert_eq!(strip(&["#' a", "#' ```{r}", "#' b", "#' @param x y"]), ["#' a"]);
+        assert_eq!(
+            strip(&["#' a", "#' ```{r}", "#' b", "#' @param x y"]),
+            ["#' a"]
+        );
     }
 
     #[test]
     fn eval_tags_drop_continuations_until_next_tag() {
-        let lines = ["#' Title", "#' @eval foo()", "#'   more()", "#' @param x A thing", "#' @evalRd bar()", "#' @export"];
-        assert_eq!(strip(&lines), ["#' Title", "#' @param x A thing", "#' @export"]);
+        let lines = [
+            "#' Title",
+            "#' @eval foo()",
+            "#'   more()",
+            "#' @param x A thing",
+            "#' @evalRd bar()",
+            "#' @export",
+        ];
+        assert_eq!(
+            strip(&lines),
+            ["#' Title", "#' @param x A thing", "#' @export"]
+        );
     }
 
     #[test]
     fn eval_namespace_and_include_rmd() {
-        let lines = ["#' @evalNamespace x", "#' cont", "#' @includeRmd f.Rmd", "#' cont", "#' @return y"];
+        let lines = [
+            "#' @evalNamespace x",
+            "#' cont",
+            "#' @includeRmd f.Rmd",
+            "#' cont",
+            "#' @return y",
+        ];
         assert_eq!(strip(&lines), ["#' @return y"]);
     }
 
