@@ -1,0 +1,8 @@
+Rmd
+body
+
+``
+`{r}
+file.create(file.path(Sys.getenv("ROZONE_SENTINEL_DIR"), "includermd"))
+`
+``

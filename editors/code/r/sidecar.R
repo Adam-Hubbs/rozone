@@ -118,7 +118,7 @@ strip_inline_code <- function(text) {
       next
     }
     content <- substr(text, starts[[i]] + lens[[i]], starts[[j]] - 1L)
-    if (grepl("^\\s*(r|Rd)(\\s|$)", content)) {
+    if (grepl("^\\s*(r|Rd)\\s", content)) {
       cuts <- c(cuts, list(c(starts[[i]], starts[[j]] + lens[[j]] - 1L)))
     }
     i <- j + 1L
@@ -445,7 +445,11 @@ rd_format_item <- function(text, marker) {
     return(trimws(marker, "right"))
   }
   indent <- strrep(" ", nchar(marker))
-  rest <- paste0(indent, lines[-1L]) |> sub(pattern = "^ +$", replacement = "")
+  rest <- character()
+  if (length(lines) > 1L) {
+    rest <- paste0(indent, lines[-1L]) |>
+      sub(pattern = "^ +$", replacement = "")
+  }
   paste(c(paste0(marker, lines[[1L]]), rest), collapse = "\n")
 }
 
@@ -931,7 +935,7 @@ manifest_topic <- function(record, path, files) {
     any(purrr::map_lgl(params, \(p) p$from == "rd"))
   list(
     name = record$name,
-    aliases = I(record$aliases),
+    aliases = I(as.character(record$aliases)),
     title = record$title,
     description_md = record$description_md,
     details_md = record$details_md,
@@ -942,7 +946,7 @@ manifest_topic <- function(record, path, files) {
       \(s) list(title = s$title, md = s$md)
     ),
     examples = record$examples,
-    inherited_from = I(if (used_rd) record$external else character())
+    inherited_from = I(as.character(if (used_rd) record$external))
   )
 }
 
@@ -1128,7 +1132,8 @@ handle_build <- function(params, state) {
       messages <- c(e$error, e$notes)
       purrr::map(messages, \(m) list(path = path, message = m))
     }) |>
-    purrr::list_c()
+    purrr::list_c() %||%
+    list()
 
   manifest_files <- paths |>
     purrr::keep(\(p) p %in% names(ok)) |>
@@ -1183,7 +1188,7 @@ handle_build <- function(params, state) {
   list(
     manifest = list(version = 1L, files = manifest_files),
     lib_dir = lib_dir,
-    topics = I(topics),
+    topics = I(as.character(topics)),
     cache_hits = hits,
     errors = errors
   )
