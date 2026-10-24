@@ -70,9 +70,11 @@ interface FunctionSummary { name: string; path: string; range: Range; title: str
 Resolution rules:
 
 - A name resolves to the definition in the **same file** first, otherwise the
-  definition in the lexicographically smallest path. Only top-level
-  `name <- function`, `name = function`, `name <<- function`,
-  `function(...) -> name` count.
+  definition in the lexicographically smallest path. Within one file the first
+  definition wins. Only top-level `name <- function`, `name = function`,
+  `name <<- function`, and the parenthesised right-assignments
+  `(function(...) ...) -> name` / `->> name` count. (Unparenthesised
+  `function(x) x -> name` parses, as in R, as a function whose body assigns.)
 - Unknown callees, `pkg::fn` callees and undocumented functions return `None`
   (Ark handles them). An undocumented function *with* a manifest topic is
   documented.
@@ -91,7 +93,7 @@ export class RozoneIndex {
   clearManifest(): void;
   hover(path: string, offset: number): Hover | undefined;
   signatureHelp(path: string, offset: number): SignatureHelp | undefined;
-  documentation(name: string, fromPath?: string): string | undefined;
+  documentation(name: string, from_path?: string | null): string | undefined; // wasm-bindgen keeps the Rust parameter name
   documentedFunctions(): FunctionSummary[];
   free(): void;
 }
@@ -99,10 +101,15 @@ export function contentHash(text: string): string;
 export function version(): string;
 ```
 
-Objects are plain JS objects (`serde-wasm-bindgen`, `serialize_missing_as_null`
-off, `Option::None` -> `undefined` at the top level, `null` inside objects).
-The built package is checked into neither git nor the VSIX source tree; it is
-produced into `editors/code/wasm/` by `npm run build:wasm`.
+Objects are plain JS objects (`serde-wasm-bindgen`'s `json_compatible()`
+serializer: `Option::None` is `undefined` at the top level and `null` inside
+objects). A Rust panic traps and reaches JS as `WebAssembly.RuntimeError:
+unreachable`; the worker treats it as fatal for that index instance and rebuilds
+from its last-known texts. The built package is not checked into git; it is
+produced into `editors/code/wasm/` by `npm run build:wasm` (which also writes a
+`{"type": "commonjs"}` `package.json` there, because the extension is
+`"type": "module"` and wasm-pack's nodejs output is CommonJS) and copied into
+`dist/wasm/` by the esbuild step.
 
 ## 3. Manifest JSON (sidecar -> core)
 
@@ -169,13 +176,31 @@ exactly one `{"id": <same>, "result": {...}}` or
     - `install: true` requires `lib_root`; it runs `R CMD INSTALL` of a
       generated `rozone.docs` package into a fresh `lib_root/lib-<gen>` and
       deletes older generations.
+    - `topics` is the sorted set of aliases in the generated package after
+      collision resolution (smallest path wins), i.e. what the hover provider
+      skips for call sites once injected.
+    - An `R CMD INSTALL` failure does not fail the build: `lib_dir` is `null`
+      and `errors` gets an entry with `path: "rozone.docs"`. An unchanged
+      `(path, hash)` set and `lib_root` reuses the previous `lib_dir`.
+    - Cross-package inheritance from an uninstalled package adds an `errors`
+      entry for that file; the file stays in the manifest.
+    - Generated Rd whose macro-expanded tree contains `\Sexpr` is dropped
+      from the installed package (noted in `errors`).
 - `ping` -> `{ "pong": true }`
 - `shutdown` -> `{ "ok": true }`, then the process exits with status 0.
   EOF on stdin also exits 0.
 
+Framing details: blank input lines get no response; a line that isn't a JSON
+object gets an error with `"id": null` and the loop continues. Clients must
+skip non-JSON stdout lines before hello (a user `.Rprofile` can print when
+`--no-init-file` isn't used). Test hook: `ROZONE_SIDECAR_REQUIRE=a,b`
+overrides the required-package list.
+
 Security: the sidecar never evaluates script bodies, default arguments, inline
-`` `r ...` ``, ```` ```{r} ```` chunks, `@eval`, `@evalRd`, `@evalNamespace` or
-`@includeRmd`.
+`` `r ...` `` (or `` `Rd ...` ``) code, ```` ```{r} ````/`~~~{r}` chunks,
+`@eval`, `@evalRd`, `@evalNamespace`, `@includeRmd`, `@template`/`@templateVar`
+(brew) or `@example` files; roxygen2's evaluating internals are replaced with
+fail-closed guards, and the sandbox env's parent is `baseenv()`.
 
 ## 5. Positron injection (TS -> user's R session)
 
