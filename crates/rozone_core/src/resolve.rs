@@ -62,7 +62,7 @@ impl Resolved {
         resolved.sections = topic.sections.iter().map(|s| (s.title.clone(), s.md.clone())).collect();
         resolved.inherited_from = topic.inherited_from.clone();
         resolved.params = def
-            .formals
+            .formals()
             .iter()
             .filter_map(|formal| {
                 let param = topic.params.iter().find(|p| p.name == formal.name && !p.md.trim().is_empty())?;
@@ -88,11 +88,11 @@ impl Index {
         let definition = def.def();
         if let Some(topic) = self
             .manifest()
-            .and_then(|m| m.topic_for(def.path, &def.file.hash, &definition.name))
+            .and_then(|m| m.topic_for(def.path, def.file.hash(), &definition.name))
         {
             return Some(Resolved::from_topic(topic, definition));
         }
-        let block = definition.block.as_ref().filter(|b| b.has_content())?;
+        let block = def.block().filter(|b| b.has_content())?;
         Some(self.resolve_static(def, block, &mut Walk::default(), true))
     }
 
@@ -102,11 +102,11 @@ impl Index {
         let definition = def.def();
         if let Some(topic) = self
             .manifest()
-            .and_then(|m| m.topic_for(def.path, &def.file.hash, &definition.name))
+            .and_then(|m| m.topic_for(def.path, def.file.hash(), &definition.name))
         {
             return Some(topic.title.clone().filter(|t| !t.trim().is_empty()));
         }
-        let block = definition.block.as_ref().filter(|b| b.has_content())?;
+        let block = def.block().filter(|b| b.has_content())?;
         let direct = block.title.clone().or_else(|| {
             block.describe_in.as_ref().map(|d| d.description.clone()).filter(|d| !d.is_empty())
         });
@@ -126,7 +126,7 @@ impl Index {
 
         let (members, field_peers) = self.peers(def);
         let blocks: Vec<&Block> = std::iter::once(block)
-            .chain(field_peers.iter().filter_map(|peer| peer.def().block.as_ref()))
+            .chain(field_peers.iter().filter_map(|peer| peer.block()))
             .collect();
         let pick = |field: fn(&Block) -> Option<&String>| blocks.iter().find_map(|b| field(b)).cloned();
 
@@ -156,8 +156,7 @@ impl Index {
         if with_params {
             let documented = self.params_of(def, walk);
             resolved.params = def
-                .def()
-                .formals
+                .formals()
                 .iter()
                 .filter_map(|formal| Some((formal.name.clone(), documented.get(&formal.name)?.clone())))
                 .collect();
@@ -177,7 +176,7 @@ impl Index {
             }
             return;
         };
-        let Some(src_block) = src_def.def().block.as_ref() else { return };
+        let Some(src_block) = src_def.block() else { return };
         let src = self.resolve_static(src_def, src_block, walk, false);
         let fill = |target: &mut Option<String>, from: Option<String>, names: &[&str]| {
             if target.is_none() && wants(names) {
@@ -216,10 +215,9 @@ impl Index {
     fn collect_params<'a>(&'a self, def: DefRef<'a>, walk: &mut Walk<'a>) -> HashMap<String, String> {
         let (members, _) = self.peers(def);
         let blocks: Vec<&Block> = def
-            .def()
-            .block
-            .iter()
-            .chain(members.iter().filter_map(|peer| peer.def().block.as_ref()))
+            .block()
+            .into_iter()
+            .chain(members.iter().filter_map(|peer| peer.block()))
             .collect();
         let mut documented: HashMap<String, String> = HashMap::new();
         for param in blocks.iter().flat_map(|b| &b.params) {
@@ -228,7 +226,7 @@ impl Index {
             }
         }
 
-        let formals = &def.def().formals;
+        let formals = def.formals();
         let missing = |documented: &HashMap<String, String>| formals.iter().any(|f| !documented.contains_key(&f.name));
         let mut pointers: Vec<&str> = Vec::new();
         let sources = blocks.iter().flat_map(|b| {
@@ -282,7 +280,7 @@ impl Index {
     /// parent's page, else its own name.
     fn page_of(&self, def: DefRef<'_>, depth: u8) -> String {
         let definition = def.def();
-        let Some(block) = &definition.block else { return definition.name.clone() };
+        let Some(block) = def.block() else { return definition.name.clone() };
         if let Some(rdname) = &block.rdname {
             return rdname.clone();
         }
@@ -304,14 +302,14 @@ impl Index {
         let page = self.page_of(def, 0);
         let mut members = self.page_members(&page);
         members.retain(|m| m.key() != def.key());
-        let is_describe = def.def().block.as_ref().is_some_and(|b| b.describe_in.is_some());
+        let is_describe = def.block().is_some_and(|b| b.describe_in.is_some());
         let field_peers = if is_describe {
             Vec::new()
         } else {
             members
                 .iter()
                 .copied()
-                .filter(|m| m.def().block.as_ref().is_some_and(|b| b.describe_in.is_none()))
+                .filter(|m| m.block().is_some_and(|b| b.describe_in.is_none()))
                 .collect()
         };
         (members, field_peers)
@@ -324,16 +322,12 @@ impl Index {
         for _ in 0..3 {
             let before = members.len();
             let mut candidates: Vec<(&'a String, &'a crate::index::FileEntry, usize)> = Vec::new();
-            let by_rdname = self.file_paths_for(self.paths_by_rdname(), page);
-            for (path, file) in by_rdname {
-                candidates.extend(file.by_rdname.get(page).into_iter().flatten().map(|&i| (path, file, i)));
-            }
-            for parent in &parents {
-                for (path, file) in self.file_paths_for(self.paths_by_name(), parent) {
-                    candidates.extend(file.by_name.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
-                }
-                for (path, file) in self.file_paths_for(self.paths_by_describe(), parent) {
-                    candidates.extend(file.by_describe.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
+            for (path, file) in self.files() {
+                let maps = file.maps();
+                candidates.extend(maps.by_rdname.get(page).into_iter().flatten().map(|&i| (path, file, i)));
+                for parent in &parents {
+                    candidates.extend(maps.by_name.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
+                    candidates.extend(maps.by_describe.get(parent.as_str()).into_iter().flatten().map(|&i| (path, file, i)));
                 }
             }
             for (path, file, idx) in candidates {

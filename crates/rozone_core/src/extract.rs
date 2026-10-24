@@ -1,6 +1,8 @@
 //! Top-level function definitions and their leading `#'` blocks.
 
 use air_r_parser::RParserOptions;
+use std::cell::OnceCell;
+
 use air_r_syntax::{AnyRExpression, RFunctionDefinition, RSyntaxNode};
 use biome_rowan::{AstNode, AstNodeList, AstSeparatedList, TextRange};
 
@@ -12,13 +14,44 @@ pub struct Formal {
     pub default: Option<String>,
 }
 
+/// Formals and the roxygen block are derived on first use: most definitions
+/// are never queried.
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub name: String,
     /// The identifier being assigned to.
     pub name_range: TextRange,
-    pub formals: Vec<Formal>,
-    pub block: Option<Block>,
+    function: RFunctionDefinition,
+    block_span: Option<TextRange>,
+    formals: OnceCell<Vec<Formal>>,
+    block: OnceCell<Option<Block>>,
+}
+
+impl Definition {
+    pub fn formals(&self) -> &[Formal] {
+        self.formals.get_or_init(|| formals(&self.function))
+    }
+
+    /// The parsed leading `#'` block. `text` is the text the definition was
+    /// extracted from.
+    pub fn block(&self, text: &str) -> Option<&Block> {
+        self.block
+            .get_or_init(|| {
+                let span = self.block_span?;
+                let raw = text.get(usize::from(span.start())..usize::from(span.end()))?;
+                let lines: Vec<&str> = raw.lines().map(str::trim_start).filter(|l| l.starts_with('#')).collect();
+                Some(parse_block(&lines))
+            })
+            .as_ref()
+    }
+
+    /// Whether the raw block mentions `tag`; lets the index find `@rdname` and
+    /// `@describeIn` without parsing every block.
+    pub fn block_mentions(&self, text: &str, tag: &str) -> bool {
+        self.block_span
+            .and_then(|span| text.get(usize::from(span.start())..usize::from(span.end())))
+            .is_some_and(|raw| raw.contains(tag))
+    }
 }
 
 pub struct Parsed {
@@ -56,8 +89,10 @@ fn definition(expr: &AnyRExpression) -> Option<Definition> {
     Some(Definition {
         name,
         name_range: ident.syntax().text_trimmed_range(),
-        formals: formals(&function),
-        block: leading_block(binary.syntax()),
+        function,
+        block_span: leading_block_span(binary.syntax()),
+        formals: OnceCell::new(),
+        block: OnceCell::new(),
     })
 }
 
@@ -93,30 +128,28 @@ pub fn unquote(name: &str) -> String {
 }
 
 /// Roxygen lines are leading trivia of the statement's first token; a blank
-/// line or a non-roxygen comment ends the block.
-fn leading_block(node: &RSyntaxNode) -> Option<Block> {
+/// line or a non-roxygen comment ends the block. Returns the text span from
+/// the first to the last `#'` line.
+fn leading_block_span(node: &RSyntaxNode) -> Option<TextRange> {
     let token = node.first_token()?;
-    let mut block: Vec<String> = Vec::new();
+    let mut span: Option<TextRange> = None;
     let mut newlines = 0;
     for piece in token.leading_trivia().pieces() {
         if piece.is_comments() {
-            let text = piece.text();
-            let is_roxygen = text.trim_start_matches('#').starts_with('\'');
+            let is_roxygen = piece.text().trim_start_matches('#').starts_with('\'');
             if !(is_roxygen && newlines < 2) {
-                block.clear();
+                span = None;
             }
             if is_roxygen {
-                block.push(text.to_string());
+                let range = piece.text_range();
+                span = Some(span.map_or(range, |s| s.cover(range)));
             }
             newlines = 0;
         } else if piece.is_newline() {
             newlines += 1;
         }
     }
-    if newlines >= 2 || block.is_empty() {
-        return None;
-    }
-    Some(parse_block(&block))
+    if newlines >= 2 { None } else { span }
 }
 
 #[cfg(test)]
@@ -125,6 +158,10 @@ mod tests {
 
     fn defs(text: &str) -> Vec<Definition> {
         parse(text).defs
+    }
+
+    fn block_of(text: &str) -> Option<Block> {
+        parse(text).defs[0].block(text).cloned()
     }
 
     fn names(text: &str) -> Vec<String> {
@@ -155,43 +192,36 @@ mod tests {
 
     #[test]
     fn formals_with_defaults() {
-        let d = &defs("f <- function(x, w = rep(1, length(x)), ...) NULL")[0];
-        let got: Vec<_> = d.formals.iter().map(|f| (f.name.as_str(), f.default.as_deref())).collect();
+        let defs = defs("f <- function(x, w = rep(1, length(x)), ...) NULL");
+        let got: Vec<_> = defs[0].formals().iter().map(|f| (f.name.as_str(), f.default.as_deref())).collect();
         assert_eq!(got, [("x", None), ("w", Some("rep(1, length(x))")), ("...", None)]);
     }
 
     #[test]
     fn block_ends_at_blank_line() {
-        let d = &defs("#' Doc\n\nf <- function() 1\n")[0];
-        assert!(d.block.is_none());
-        let d = &defs("#' Doc\nf <- function() 1\n")[0];
-        assert_eq!(d.block.as_ref().unwrap().title.as_deref(), Some("Doc"));
+        assert!(block_of("#' Doc\n\nf <- function() 1\n").is_none());
+        assert_eq!(block_of("#' Doc\nf <- function() 1\n").unwrap().title.as_deref(), Some("Doc"));
     }
 
     #[test]
     fn plain_comment_between_ends_block() {
-        let d = &defs("#' Doc\n# note\nf <- function() 1\n")[0];
-        assert!(d.block.is_none());
-        let d = &defs("# note\n#' Doc\nf <- function() 1\n")[0];
-        assert!(d.block.is_some());
+        assert!(block_of("#' Doc\n# note\nf <- function() 1\n").is_none());
+        assert!(block_of("# note\n#' Doc\nf <- function() 1\n").is_some());
     }
 
     #[test]
     fn blank_line_inside_comments_restarts_block() {
-        let d = &defs("#' Old\n\n#' New\nf <- function() 1\n")[0];
-        assert_eq!(d.block.as_ref().unwrap().title.as_deref(), Some("New"));
+        assert_eq!(block_of("#' Old\n\n#' New\nf <- function() 1\n").unwrap().title.as_deref(), Some("New"));
     }
 
     #[test]
     fn block_for_right_assignment_is_on_the_paren() {
-        let d = &defs("#' Doc\n(function() 1) -> f\n")[0];
-        assert!(d.block.is_some());
+        assert!(block_of("#' Doc\n(function() 1) -> f\n").is_some());
     }
 
     #[test]
     fn first_statement_in_file_has_its_block() {
-        let d = &defs("#' First\nf <- function() 1\n")[0];
-        assert!(d.block.is_some());
+        assert!(block_of("#' First\nf <- function() 1\n").is_some());
     }
 
     #[test]
@@ -207,7 +237,6 @@ mod tests {
 
     #[test]
     fn crlf_line_endings() {
-        let d = &defs("#' Doc\r\nf <- function() 1\r\n")[0];
-        assert_eq!(d.block.as_ref().unwrap().title.as_deref(), Some("Doc"));
+        assert_eq!(block_of("#' Doc\r\nf <- function() 1\r\n").unwrap().title.as_deref(), Some("Doc"));
     }
 }

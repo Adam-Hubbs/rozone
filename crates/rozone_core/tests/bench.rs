@@ -1,5 +1,5 @@
 //! Timing check for a large script. Run with:
-//! `CARGO_PROFILE_RELEASE_OPT_LEVEL=3 ROZONE_BENCH_STRICT=1 cargo test -p rozone_core --release --test bench -- --ignored --nocapture`
+//! `ROZONE_BENCH_STRICT=1 cargo test -p rozone_core --release --test bench -- --ignored --nocapture`
 
 use std::time::Instant;
 
@@ -51,9 +51,9 @@ fn large_file() {
     println!("documented_functions ({}): {:?}", docs.len(), start.elapsed());
     assert_eq!(docs.len(), 4000);
 
-    // The workspace release profile is size-optimised (opt-level "z"), which
-    // roughly doubles parse time; the 50 ms budget assumes a speed-optimised build.
+    // The budget assumes the workspace release profile (opt-level 3); a
+    // size-optimised build roughly doubles parse time.
     if std::env::var_os("ROZONE_BENCH_STRICT").is_some() {
-        assert!(update.as_millis() < 50, "update_file took {update:?}");
+        assert!(update.as_millis() < 25, "update_file took {update:?}");
     }
 }

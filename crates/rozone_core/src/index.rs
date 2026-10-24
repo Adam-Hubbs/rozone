@@ -1,12 +1,14 @@
 //! The workspace index and the cursor-driven queries on it.
 
-use std::collections::{BTreeSet, HashMap};
+use std::cell::OnceCell;
+use std::collections::HashMap;
 
 use air_r_syntax::RSyntaxNode;
 use biome_rowan::TextSize;
 
 use crate::call::{IdentAt, Usage, call_at, ident_at, match_args};
-use crate::extract::{Definition, parse};
+use crate::extract::{Definition, Formal, parse};
+use crate::roxygen::Block;
 use crate::manifest::Manifest;
 use crate::text::TextMap;
 use crate::{
@@ -14,45 +16,61 @@ use crate::{
     markdown,
 };
 
-/// A parsed file. The syntax tree is kept so queries never re-parse.
-#[derive(Debug)]
-pub(crate) struct FileEntry {
-    pub hash: String,
-    pub len: usize,
-    pub map: TextMap,
-    pub root: RSyntaxNode,
-    pub defs: Vec<Definition>,
+/// Name lookups for one file, built on first use so that `update_file` only
+/// pays for parsing.
+#[derive(Debug, Default)]
+pub(crate) struct FileMaps {
     pub by_name: HashMap<String, Vec<usize>>,
     pub by_rdname: HashMap<String, Vec<usize>>,
     pub by_describe: HashMap<String, Vec<usize>>,
 }
 
+/// A parsed file. The syntax tree is kept so queries never re-parse.
+#[derive(Debug)]
+pub(crate) struct FileEntry {
+    hash: OnceCell<String>,
+    maps: OnceCell<FileMaps>,
+    pub text: Box<str>,
+    pub map: TextMap,
+    pub root: RSyntaxNode,
+    pub defs: Vec<Definition>,
+}
+
 impl FileEntry {
-    fn new(text: &str) -> Self {
-        let parsed = parse(text);
-        let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
-        let mut by_rdname: HashMap<String, Vec<usize>> = HashMap::new();
-        let mut by_describe: HashMap<String, Vec<usize>> = HashMap::new();
-        for (i, def) in parsed.defs.iter().enumerate() {
-            by_name.entry(def.name.clone()).or_default().push(i);
-            if let Some(block) = &def.block {
-                if let Some(rdname) = &block.rdname {
-                    by_rdname.entry(rdname.clone()).or_default().push(i);
+    /// Computed on first use: only the manifest overlay needs it.
+    pub fn hash(&self) -> &str {
+        self.hash.get_or_init(|| content_hash(&self.text))
+    }
+
+    pub fn maps(&self) -> &FileMaps {
+        self.maps.get_or_init(|| {
+            let mut maps = FileMaps::default();
+            for (i, def) in self.defs.iter().enumerate() {
+                maps.by_name.entry(def.name.clone()).or_default().push(i);
+                if def.block_mentions(&self.text, "@rdname")
+                    && let Some(rdname) = def.block(&self.text).and_then(|b| b.rdname.as_ref())
+                {
+                    maps.by_rdname.entry(rdname.clone()).or_default().push(i);
                 }
-                if let Some(describe) = &block.describe_in {
-                    by_describe.entry(describe.parent.clone()).or_default().push(i);
+                if def.block_mentions(&self.text, "@describeIn")
+                    && let Some(describe) = def.block(&self.text).and_then(|b| b.describe_in.as_ref())
+                {
+                    maps.by_describe.entry(describe.parent.clone()).or_default().push(i);
                 }
             }
-        }
+            maps
+        })
+    }
+
+    fn new(text: &str) -> Self {
+        let parsed = parse(text);
         Self {
-            hash: content_hash(text),
-            len: text.len(),
+            hash: OnceCell::new(),
+            maps: OnceCell::new(),
+            text: text.into(),
             map: TextMap::new(text),
             root: parsed.root,
             defs: parsed.defs,
-            by_name,
-            by_rdname,
-            by_describe,
         }
     }
 }
@@ -72,6 +90,14 @@ impl<'a> DefRef<'a> {
         &self.file.defs[self.idx]
     }
 
+    pub fn formals(&self) -> &'a [Formal] {
+        self.def().formals()
+    }
+
+    pub fn block(&self) -> Option<&'a Block> {
+        self.def().block(&self.file.text)
+    }
+
     pub fn key(&self) -> DefKey<'a> {
         (self.path, self.idx)
     }
@@ -80,9 +106,6 @@ impl<'a> DefRef<'a> {
 #[derive(Debug, Default)]
 pub struct Index {
     files: HashMap<String, FileEntry>,
-    paths_by_name: HashMap<String, BTreeSet<String>>,
-    paths_by_rdname: HashMap<String, BTreeSet<String>>,
-    paths_by_describe: HashMap<String, BTreeSet<String>>,
     manifest: Option<Manifest>,
 }
 
@@ -93,39 +116,14 @@ impl Index {
 
     /// Parses `text` once; unchanged text is a no-op.
     pub fn update_file(&mut self, path: &str, text: &str) {
-        if self.files.get(path).is_some_and(|file| file.len == text.len() && file.hash == content_hash(text)) {
+        if self.files.get(path).is_some_and(|file| *file.text == *text) {
             return;
         }
-        self.remove_file(path);
-        let file = FileEntry::new(text);
-        for (keys, map) in [
-            (file.by_name.keys(), &mut self.paths_by_name),
-            (file.by_rdname.keys(), &mut self.paths_by_rdname),
-            (file.by_describe.keys(), &mut self.paths_by_describe),
-        ] {
-            for key in keys {
-                map.entry(key.clone()).or_default().insert(path.to_string());
-            }
-        }
-        self.files.insert(path.to_string(), file);
+        self.files.insert(path.to_string(), FileEntry::new(text));
     }
 
     pub fn remove_file(&mut self, path: &str) {
-        let Some(file) = self.files.remove(path) else { return };
-        for (keys, map) in [
-            (file.by_name.keys(), &mut self.paths_by_name),
-            (file.by_rdname.keys(), &mut self.paths_by_rdname),
-            (file.by_describe.keys(), &mut self.paths_by_describe),
-        ] {
-            for key in keys {
-                if let Some(paths) = map.get_mut(key) {
-                    paths.remove(path);
-                    if paths.is_empty() {
-                        map.remove(key);
-                    }
-                }
-            }
-        }
+        self.files.remove(path);
     }
 
     /// Replaces any previous manifest. On error the previous one is kept.
@@ -144,7 +142,7 @@ impl Index {
         let ident = ident_at(&file.root, byte)?;
         let (def, kind) = self.hover_target(path, file, &ident)?;
         let doc = self.resolve(def)?;
-        let signature = markdown::signature(&def.def().name, &def.def().formals);
+        let signature = markdown::signature(&def.def().name, def.formals());
         Some(Hover {
             name: def.def().name.clone(),
             kind,
@@ -172,7 +170,7 @@ impl Index {
         let site = call_at(&file.root, byte)?;
         let def = self.lookup(&site.callee, Some(path))?;
         let doc = self.resolve(def)?;
-        let formals = &def.def().formals;
+        let formals = def.formals();
         let signature = markdown::signature(&def.def().name, formals);
 
         let names: Vec<&str> = formals.iter().map(|f| f.name.as_str()).collect();
@@ -195,7 +193,7 @@ impl Index {
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String> {
         let def = self.lookup(name, from_path)?;
         let doc = self.resolve(def)?;
-        let signature = markdown::signature(&def.def().name, &def.def().formals);
+        let signature = markdown::signature(&def.def().name, def.formals());
         Some(markdown::page(&def.def().name, file_label(def.path), &signature.label, &doc))
     }
 
@@ -233,37 +231,21 @@ impl Index {
     pub(crate) fn lookup<'a>(&'a self, name: &str, from_path: Option<&str>) -> Option<DefRef<'a>> {
         let local = from_path.and_then(|p| self.files.get_key_value(p));
         if let Some((path, file)) = local
-            && let Some(&idx) = file.by_name.get(name).and_then(|v| v.first())
+            && let Some(&idx) = file.maps().by_name.get(name).and_then(|v| v.first())
         {
             return Some(DefRef { path, file, idx });
         }
-        let path = self.paths_by_name.get(name)?.iter().next()?;
-        let (path, file) = self.files.get_key_value(path.as_str())?;
-        let idx = *file.by_name.get(name)?.first()?;
+        let (path, file) = self
+            .files
+            .iter()
+            .filter(|(_, file)| file.maps().by_name.contains_key(name))
+            .min_by_key(|(path, _)| path.as_str())?;
+        let idx = *file.maps().by_name.get(name)?.first()?;
         Some(DefRef { path, file, idx })
     }
 
-    pub(crate) fn file_paths_for<'a>(
-        &'a self,
-        map: &'a HashMap<String, BTreeSet<String>>,
-        key: &str,
-    ) -> impl Iterator<Item = (&'a String, &'a FileEntry)> {
-        map.get(key)
-            .into_iter()
-            .flatten()
-            .filter_map(|path| self.files.get_key_value(path.as_str()))
-    }
-
-    pub(crate) fn paths_by_name(&self) -> &HashMap<String, BTreeSet<String>> {
-        &self.paths_by_name
-    }
-
-    pub(crate) fn paths_by_rdname(&self) -> &HashMap<String, BTreeSet<String>> {
-        &self.paths_by_rdname
-    }
-
-    pub(crate) fn paths_by_describe(&self) -> &HashMap<String, BTreeSet<String>> {
-        &self.paths_by_describe
+    pub(crate) fn files(&self) -> impl Iterator<Item = (&String, &FileEntry)> {
+        self.files.iter()
     }
 
     pub(crate) fn manifest(&self) -> Option<&Manifest> {
