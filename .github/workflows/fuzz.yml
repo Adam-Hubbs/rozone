@@ -1,0 +1,48 @@
+name: Fuzz
+
+# Scheduled, non-blocking fuzzing of the rozone_core and rozone_wasm input
+# surfaces. See docs/fuzzing.md. Crash inputs are uploaded as artifacts.
+
+on:
+  schedule:
+    - cron: "30 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [index_queries, roxygen_block, manifest_json]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - uses: actions/cache@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+      - name: Build
+        run: cargo fuzz build -s none --fuzz-dir fuzz ${{ matrix.target }}
+      - name: Fuzz for five minutes
+        run: cargo fuzz run -s none --fuzz-dir fuzz ${{ matrix.target }} -- -max_total_time=300
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
