@@ -1,0 +1,92 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"links.R\")"
+---
+# documented functions
+links 542..547 title=Some("Link tester")
+
+# documentation(links)
+# Link tester
+
+`links` is defined in `links.R`.
+
+```r
+links(x)
+```
+
+## Description
+
+See `wmean()`, `stats::sd()`, `dplyr::mutate`, the docs and
+`code`. A real [link](https://example.com) stays. `[x]` stays in code.
+
+## Arguments
+
+- `x`: Uses `stats::sd()`.
+
+## Details
+
+Details with `fn` link and x[i] indexing.
+
+## Returns
+
+A `list()`.
+
+## Warnings
+
+Be careful with `wmean()`.
+
+Second paragraph.
+
+## Other notes
+
+Inline body.
+
+## Examples
+
+```r
+f(1)
+if (TRUE) {
+  f(2)
+}
+```
+
+See `inst/examples/f.R`.
+
+## See also
+
+`wmean()`, `pkg::fn()`
+
+Family: helpers
+
+# hover at definition of links
+hover: Definition links range=542..547 source=Static
+  | ```r
+  | links(x)
+  | ```
+  | 
+  | **Link tester**
+  | 
+  | See `wmean()`, `stats::sd()`, `dplyr::mutate`, the docs and
+  | `code`. A real [link](https://example.com) stays. `[x]` stays in code.
+  | 
+  | **Parameters**
+  | 
+  | - `x`: Uses `stats::sd()`.
+  | 
+  | **Returns**
+  | 
+  | A `list()`.
+  | 
+  | **Warnings**
+  | 
+  | Be careful with `wmean()`.
+  | 
+  | Second paragraph.
+  | 
+  | **Other notes**
+  | 
+  | Inline body.
+
+# 26:6  links(¦)
+hover: none
+signature: links(x) active=0 (x)

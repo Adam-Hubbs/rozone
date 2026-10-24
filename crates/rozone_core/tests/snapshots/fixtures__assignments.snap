@@ -1,0 +1,119 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"assignments.R\")"
+---
+# documented functions
+eq 10..12 title=Some("Equals")
+sup 42..45 title=Some("Super")
+arrow 105..110 title=Some("Right arrow")
+paren 129..134 title=Some("Parenthesised")
+outer 175..180 title=Some("Not top level")
+
+# documentation(eq)
+# Equals
+
+`eq` is defined in `assignments.R`.
+
+```r
+eq(a)
+```
+
+# hover at definition of eq
+hover: Definition eq range=10..12 source=Static
+  | ```r
+  | eq(a)
+  | ```
+  | 
+  | **Equals**
+
+# documentation(sup)
+# Super
+
+`sup` is defined in `assignments.R`.
+
+```r
+sup(a)
+```
+
+# hover at definition of sup
+hover: Definition sup range=42..45 source=Static
+  | ```r
+  | sup(a)
+  | ```
+  | 
+  | **Super**
+
+# documentation(arrow)
+# Right arrow
+
+`arrow` is defined in `assignments.R`.
+
+```r
+arrow(a)
+```
+
+# hover at definition of arrow
+hover: Definition arrow range=105..110 source=Static
+  | ```r
+  | arrow(a)
+  | ```
+  | 
+  | **Right arrow**
+
+# documentation(paren)
+# Parenthesised
+
+`paren` is defined in `assignments.R`.
+
+```r
+paren(a)
+```
+
+# hover at definition of paren
+hover: Definition paren range=129..134 source=Static
+  | ```r
+  | paren(a)
+  | ```
+  | 
+  | **Parenthesised**
+
+# documentation(outer)
+# Not top level
+
+`outer` is defined in `assignments.R`.
+
+```r
+outer()
+```
+
+# hover at definition of outer
+hover: Definition outer range=175..180 source=Static
+  | ```r
+  | outer()
+  | ```
+  | 
+  | **Not top level**
+
+# 17:8    inner(¦1)
+hover: none
+signature: none
+
+# 31:3  eq(¦)
+hover: none
+signature: eq(a) active=0 (a)
+
+# 32:4  sup(¦)
+hover: none
+signature: sup(a) active=0 (a)
+
+# 33:6  arrow(¦)
+hover: none
+signature: arrow(a) active=0 (a)
+
+# 34:6  paren(¦)
+hover: none
+signature: paren(a) active=0 (a)
+
+# 35:6  in_if(¦)
+hover: none
+signature: none

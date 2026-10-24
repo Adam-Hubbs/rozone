@@ -1,0 +1,75 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"broken.R\")"
+---
+# documented functions
+before 10..16 title=Some("Before")
+mid 64..67 title=Some("Mid")
+after 108..113 title=Some("After")
+
+# documentation(before)
+# Before
+
+`before` is defined in `broken.R`.
+
+```r
+before(a)
+```
+
+# hover at definition of before
+hover: Definition before range=10..16 source=Static
+  | ```r
+  | before(a)
+  | ```
+  | 
+  | **Before**
+
+# documentation(mid)
+# Mid
+
+`mid` is defined in `broken.R`.
+
+```r
+mid(b)
+```
+
+# hover at definition of mid
+hover: Definition mid range=64..67 source=Static
+  | ```r
+  | mid(b)
+  | ```
+  | 
+  | **Mid**
+
+# documentation(after)
+# After
+
+`after` is defined in `broken.R`.
+
+```r
+after(c)
+```
+
+# hover at definition of after
+hover: Definition after range=108..113 source=Static
+  | ```r
+  | after(c)
+  | ```
+  | 
+  | **After**
+
+# 20:7  before(¦)
+hover: none
+signature: before(a) active=0 (a)
+
+# 21:4  mid(¦)
+hover: none
+signature: mid(b) active=0 (b)
+
+# 22:6  after(¦)
+hover: none
+signature: after(c) active=0 (c)
+
+# 23:5  late(¦)
+hover: none
+signature: none

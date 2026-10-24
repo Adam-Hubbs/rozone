@@ -1,0 +1,183 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"calls.R\")"
+---
+# documented functions
+f 137..138 title=Some("Compute things")
+
+# documentation(f)
+# Compute things
+
+`f` is defined in `calls.R`.
+
+```r
+f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8)
+```
+
+## Arguments
+
+- `x`: The x.
+- `na.rm`: Remove NAs.
+- `names`: Names.
+- `...`: Extra.
+- `tol`: Tolerance.
+
+# hover at definition of f
+hover: Definition f range=137..138 source=Static
+  | ```r
+  | f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8)
+  | ```
+  | 
+  | **Compute things**
+  | 
+  | **Parameters**
+  | 
+  | - `x`: The x.
+  | - `na.rm`: Remove NAs.
+  | - `names`: Names.
+  | - `...`: Extra.
+  | - `tol`: Tolerance.
+
+# 10:5  f(1, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 11:8  f(1, 2, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=2 (names = NULL)
+
+# 12:7  f(na = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=3 (...)
+
+# 13:8  f(na. = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 14:8  f(nam = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=2 (names = NULL)
+
+# 15:6  f(n = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=3 (...)
+
+# 16:12  f(1, 2, 3, 4¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=3 (...)
+
+# 17:19  f(1, 2, 3, 4, to = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=3 (...)
+
+# 18:11  f(tol = 1, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 19:17  f(1, tol = 1e-3, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 20:16  f(na.rm = TRUE, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 21:2  f(¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 22:7  f(1, , ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=2 (names = NULL)
+
+# 23:4  f(, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 24:4  f(1,¦ 2)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 25:3  f(1¦, 2)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 26:4  f(1 ¦, 2)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 27:8  f(g(1), ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 28:9  f(rep(1, ¦))
+hover: none
+signature: none
+
+# 29:10  f(1, f(2, ¦))
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 30:13  f(x = 1, x = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=3 (...)
+
+# 31:12  f("na.rm" = ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 32:16  f(c(1, 2, 3)[1, ¦], 2)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 33:24  f(1, function(a, b) a + ¦b)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 35:7  x |> f(¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 36:14  x |> f(x = _, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 37:18  x |> f(na.rm = _, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 38:10  x |> f(1, ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=2 (names = NULL)
+
+# 39:8  x %>% f(¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 40:11  x %>% f(., ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 41:8  x %>% f(¦., 1)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 42:14  x %>% f(g(.), ¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=2 (names = NULL)
+
+# 43:14  x |> g() |> f(¦)
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 44:2  f(¦) |> g()
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=0 (x)
+
+# 46:2    ¦
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)
+
+# 48:13  f(1, na.rm = ¦
+hover: none
+signature: f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8) active=1 (na.rm = FALSE)

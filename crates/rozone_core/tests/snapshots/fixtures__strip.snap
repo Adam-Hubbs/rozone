@@ -1,0 +1,71 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"strip.R\")"
+---
+# documented functions
+hostile 483..490 title=Some("Inline  code")
+unterminated 651..663 title=Some("Unterminated fence")
+
+# documentation(hostile)
+# Inline  code
+
+`hostile` is defined in `strip.R`.
+
+```r
+hostile(x)
+```
+
+## Description
+
+Today is , really.
+
+## Arguments
+
+- `x`: Documented  here.
+
+## Details
+
+After the fence.
+
+```r
+kept <- "plain r fence"
+```
+
+## Returns
+
+Kept.
+
+# hover at definition of hostile
+hover: Definition hostile range=483..490 source=Static
+  | ```r
+  | hostile(x)
+  | ```
+  | 
+  | **Inline  code**
+  | 
+  | Today is , really.
+  | 
+  | **Parameters**
+  | 
+  | - `x`: Documented  here.
+  | 
+  | **Returns**
+  | 
+  | Kept.
+
+# documentation(unterminated)
+# Unterminated fence
+
+`unterminated` is defined in `strip.R`.
+
+```r
+unterminated(a)
+```
+
+# hover at definition of unterminated
+hover: Definition unterminated range=651..663 source=Static
+  | ```r
+  | unterminated(a)
+  | ```
+  | 
+  | **Unterminated fence**

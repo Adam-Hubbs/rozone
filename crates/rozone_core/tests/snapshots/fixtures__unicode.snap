@@ -1,0 +1,75 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"unicode.R\")"
+---
+# documented functions
+uni 125..128 title=Some("Ünïcode 🎉 title")
+
+# documentation(uni)
+# Ünïcode 🎉 title
+
+`uni` is defined in `unicode.R`.
+
+```r
+uni(é, x = "😀 中", ...)
+```
+
+## Description
+
+Descripción con 中文 and emoji 😀.
+
+## Arguments
+
+- `é`: Accent param.
+- `x`: 😀 param.
+
+# hover at definition of uni
+hover: Definition uni range=125..128 source=Static
+  | ```r
+  | uni(é, x = "😀 中", ...)
+  | ```
+  | 
+  | **Ünïcode 🎉 title**
+  | 
+  | Descripción con 中文 and emoji 😀.
+  | 
+  | **Parameters**
+  | 
+  | - `é`: Accent param.
+  | - `x`: 😀 param.
+
+# 10:16  s <- "😀 中文"; un¦i(1)
+hover: Call uni range=181..184 source=Static
+  | ```r
+  | uni(é, x = "😀 中", ...)
+  | ```
+  | 
+  | **Ünïcode 🎉 title**
+  | 
+  | Descripción con 中文 and emoji 😀.
+  | 
+  | **Parameters**
+  | 
+  | - `é`: Accent param.
+  | - `x`: 😀 param.
+signature: none
+
+# 11:9  # 😀 uni(¦)
+hover: none
+signature: none
+
+# 12:14  uni(x = "中中", ¦)
+hover: none
+signature: uni(é, x = "😀 中", ...) active=0 (é)
+
+# 13:4  uni(¦"😀", x = "😀😀", ...)
+hover: none
+signature: uni(é, x = "😀 中", ...) active=0 (é)
+
+# 13:25  uni("😀", x = "😀😀", ...¦)
+hover: none
+signature: uni(é, x = "😀 中", ...) active=2 (...)
+
+# 14:17  😀 <- 1; uni(😀, ¦)
+hover: none
+signature: uni(é, x = "😀 中", ...) active=1 (x = "😀 中")

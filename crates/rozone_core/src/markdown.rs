@@ -107,14 +107,13 @@ fn convert_link(s: &str, out: &mut String) -> usize {
         out.push_str(&s[..=close]);
         return close + 1;
     }
-    if let Some(dest_and_rest) = after.strip_prefix('[') {
-        if let Some(end) = dest_and_rest.find(']') {
-            let dest = &dest_and_rest[..end];
-            if is_destination(dest) && !inner.is_empty() {
-                out.push_str(inner);
-                return close + 1 + 1 + end + 1;
-            }
-        }
+    if let Some(dest_and_rest) = after.strip_prefix('[')
+        && let Some(end) = dest_and_rest.find(']')
+        && is_destination(&dest_and_rest[..end])
+        && !inner.is_empty()
+    {
+        out.push_str(inner);
+        return close + 1 + 1 + end + 1;
     }
     if is_code_text(inner) || is_topic_reference(inner) {
         if inner.starts_with('`') {

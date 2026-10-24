@@ -1,0 +1,209 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"rdname.R\")"
+---
+# documented functions
+add 121..124 title=Some("Math helpers")
+add3 184..188 title=Some("Math helpers")
+sub 236..239 title=Some("Math helpers")
+one 307..310 title=Some("Standalone page")
+two 374..377 title=Some("Standalone page")
+
+# documentation(add)
+# Math helpers
+
+`add` is defined in `rdname.R`.
+
+*Shares its help page with `add3()`, `sub()`.*
+
+```r
+add(x, y)
+```
+
+## Description
+
+Helpers for doing math.
+
+## Arguments
+
+- `x`: A number.
+- `y`: Another number.
+
+## Returns
+
+A number.
+
+# hover at definition of add
+hover: Definition add range=121..124 source=Static
+  | ```r
+  | add(x, y)
+  | ```
+  | 
+  | **Math helpers**
+  | 
+  | *Shares its help page with `add3()`, `sub()`.*
+  | 
+  | Helpers for doing math.
+  | 
+  | **Parameters**
+  | 
+  | - `x`: A number.
+  | - `y`: Another number.
+  | 
+  | **Returns**
+  | 
+  | A number.
+
+# documentation(add3)
+# Math helpers
+
+`add3` is defined in `rdname.R`.
+
+*Shares its help page with `add()`, `sub()`.*
+
+```r
+add3(x, y, z)
+```
+
+## Description
+
+Helpers for doing math.
+
+## Arguments
+
+- `x`: A number.
+- `y`: Another number.
+- `z`: Third.
+
+## Returns
+
+A number.
+
+# hover at definition of add3
+hover: Definition add3 range=184..188 source=Static
+  | ```r
+  | add3(x, y, z)
+  | ```
+  | 
+  | **Math helpers**
+  | 
+  | *Shares its help page with `add()`, `sub()`.*
+  | 
+  | Helpers for doing math.
+  | 
+  | **Parameters**
+  | 
+  | - `x`: A number.
+  | - `y`: Another number.
+  | - `z`: Third.
+  | 
+  | **Returns**
+  | 
+  | A number.
+
+# documentation(sub)
+# Math helpers
+
+`sub` is defined in `rdname.R`.
+
+*Shares its help page with `add()`, `add3()`.*
+
+```r
+sub(x, y)
+```
+
+## Description
+
+Helpers for doing math.
+
+## Arguments
+
+- `x`: A number.
+- `y`: Another number.
+
+## Returns
+
+A number.
+
+# hover at definition of sub
+hover: Definition sub range=236..239 source=Static
+  | ```r
+  | sub(x, y)
+  | ```
+  | 
+  | **Math helpers**
+  | 
+  | *Shares its help page with `add()`, `add3()`.*
+  | 
+  | Helpers for doing math.
+  | 
+  | **Parameters**
+  | 
+  | - `x`: A number.
+  | - `y`: Another number.
+  | 
+  | **Returns**
+  | 
+  | A number.
+
+# documentation(one)
+# Standalone page
+
+`one` is defined in `rdname.R`.
+
+*Shares its help page with `two()`.*
+
+```r
+one(a)
+```
+
+## Arguments
+
+- `a`: The a.
+
+# hover at definition of one
+hover: Definition one range=307..310 source=Static
+  | ```r
+  | one(a)
+  | ```
+  | 
+  | **Standalone page**
+  | 
+  | *Shares its help page with `two()`.*
+  | 
+  | **Parameters**
+  | 
+  | - `a`: The a.
+
+# documentation(two)
+# Standalone page
+
+`two` is defined in `rdname.R`.
+
+*Shares its help page with `one()`.*
+
+```r
+two(a)
+```
+
+## Arguments
+
+- `a`: The a.
+
+# hover at definition of two
+hover: Definition two range=374..377 source=Static
+  | ```r
+  | two(a)
+  | ```
+  | 
+  | **Standalone page**
+  | 
+  | *Shares its help page with `one()`.*
+  | 
+  | **Parameters**
+  | 
+  | - `a`: The a.
+
+# 25:11  add3(1, 2, ¦)
+hover: none
+signature: add3(x, y, z) active=2 (z)

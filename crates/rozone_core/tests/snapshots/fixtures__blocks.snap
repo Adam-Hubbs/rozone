@@ -1,0 +1,67 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"blocks.R\")"
+---
+# documented functions
+plain_before 171..183 title=Some("Doc after comment")
+second_wins 314..325 title=Some("Second block wins")
+with_params 377..388 title=Some("With params")
+
+# documentation(plain_before)
+# Doc after comment
+
+`plain_before` is defined in `blocks.R`.
+
+```r
+plain_before(a)
+```
+
+# hover at definition of plain_before
+hover: Definition plain_before range=171..183 source=Static
+  | ```r
+  | plain_before(a)
+  | ```
+  | 
+  | **Doc after comment**
+
+# documentation(second_wins)
+# Second block wins
+
+`second_wins` is defined in `blocks.R`.
+
+```r
+second_wins(a)
+```
+
+# hover at definition of second_wins
+hover: Definition second_wins range=314..325 source=Static
+  | ```r
+  | second_wins(a)
+  | ```
+  | 
+  | **Second block wins**
+
+# documentation(with_params)
+# With params
+
+`with_params` is defined in `blocks.R`.
+
+```r
+with_params(a)
+```
+
+## Arguments
+
+- `a`: A.
+
+# hover at definition of with_params
+hover: Definition with_params range=377..388 source=Static
+  | ```r
+  | with_params(a)
+  | ```
+  | 
+  | **With params**
+  | 
+  | **Parameters**
+  | 
+  | - `a`: A.

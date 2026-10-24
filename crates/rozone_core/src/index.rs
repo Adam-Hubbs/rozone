@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct FileEntry {
     pub hash: String,
-    pub text: String,
+    pub len: usize,
     pub map: TextMap,
     pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
@@ -46,7 +46,7 @@ impl FileEntry {
         }
         Self {
             hash: content_hash(text),
-            text: text.to_string(),
+            len: text.len(),
             map: TextMap::new(text),
             root: parsed.root,
             defs: parsed.defs,
@@ -93,7 +93,7 @@ impl Index {
 
     /// Parses `text` once; unchanged text is a no-op.
     pub fn update_file(&mut self, path: &str, text: &str) {
-        if self.files.get(path).is_some_and(|file| file.text == text) {
+        if self.files.get(path).is_some_and(|file| file.len == text.len() && file.hash == content_hash(text)) {
             return;
         }
         self.remove_file(path);
@@ -232,10 +232,10 @@ impl Index {
     /// file the first definition wins.
     pub(crate) fn lookup<'a>(&'a self, name: &str, from_path: Option<&str>) -> Option<DefRef<'a>> {
         let local = from_path.and_then(|p| self.files.get_key_value(p));
-        if let Some((path, file)) = local {
-            if let Some(&idx) = file.by_name.get(name).and_then(|v| v.first()) {
-                return Some(DefRef { path, file, idx });
-            }
+        if let Some((path, file)) = local
+            && let Some(&idx) = file.by_name.get(name).and_then(|v| v.first())
+        {
+            return Some(DefRef { path, file, idx });
         }
         let path = self.paths_by_name.get(name)?.iter().next()?;
         let (path, file) = self.files.get_key_value(path.as_str())?;

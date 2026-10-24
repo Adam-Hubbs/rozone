@@ -287,10 +287,10 @@ impl Index {
             return rdname.clone();
         }
         if let Some(describe) = &block.describe_in {
-            if depth < 8 {
-                if let Some(parent) = self.lookup(&describe.parent, Some(def.path)).filter(|p| p.key() != def.key()) {
-                    return self.page_of(parent, depth + 1);
-                }
+            if depth < 8
+                && let Some(parent) = self.lookup(&describe.parent, Some(def.path)).filter(|p| p.key() != def.key())
+            {
+                return self.page_of(parent, depth + 1);
             }
             return describe.parent.clone();
         }
