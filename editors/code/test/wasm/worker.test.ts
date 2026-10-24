@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { test } from "node:test";
 import { Worker } from "node:worker_threads";
 
-import { fnv1a64, wasmModulePath } from "./helpers.mjs";
+import { fnv1a64, wasmModulePath } from "./helpers.ts";
 
 const workerSource = `
 const { parentPort, workerData } = require("node:worker_threads");

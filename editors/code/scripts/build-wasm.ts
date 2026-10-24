@@ -10,14 +10,14 @@ const outName = "rozone_wasm";
 const wasmPath = join(outDir, `${outName}_bg.wasm`);
 const dev = process.argv.includes("--dev");
 
-const run = (command, args) => {
+const run = (command: string, args: string[]): void => {
   const result = spawnSync(command, args, { stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with status ${result.status}`);
 };
 
 const hasWasmOpt = spawnSync("wasm-opt", ["--version"], { stdio: "ignore" }).status === 0;
-const kib = (path) => `${(statSync(path).size / 1024).toFixed(1)} KiB`;
+const kib = (path: string): string => `${(statSync(path).size / 1024).toFixed(1)} KiB`;
 
 run("wasm-pack", [
   "build",
