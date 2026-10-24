@@ -5,7 +5,7 @@ import { examplePath, exampleText, fnv1a64, loadRozone, wmeanManifest } from "./
 
 const rozone = loadRozone();
 
-const CORE_TODO = { todo: "needs rozone_core" };
+const CORE_TODO = {};
 
 const calleeOffset = (text: string): number => text.indexOf("wmean({{ col }}, w)");
 
