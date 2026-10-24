@@ -751,7 +751,7 @@ topic_record <- function(rd, blocks) {
   )
 
   list(
-    name = as.character(rd$get_value("name")),
+    name = as.character(rd$get_value("name"))[[1L]],
     aliases = aliases,
     title = local_title %||% (if (nzchar(rd_title)) rd_title),
     description_md = description,
@@ -815,10 +815,16 @@ build_file <- function(text) {
     ),
     warning = \(w) invokeRestart("muffleWarning")
   )
-  records <- rd_topics |> unname() |> purrr::map(\(rd) topic_record(rd, blocks))
   rd_text <- rd_topics |>
     purrr::map_chr(\(rd) paste(format(rd), collapse = "\n"))
   safe <- purrr::map_lgl(rd_text, rd_is_safe)
+  records <- list(unname(rd_topics), names(rd_topics), unname(rd_text), safe) |>
+    purrr::pmap(\(rd, file, text, ok) {
+      c(
+        topic_record(rd, blocks),
+        list(rd_file = file, rd_text = text, rd_safe = unname(ok))
+      )
+    })
   if (!all(safe)) {
     unsafe <- purrr::map_chr(records[!safe], \(r) r$name)
     notes <- c(
@@ -842,11 +848,7 @@ build_file <- function(text) {
         )
       })
   )
-  list(
-    records = records,
-    rd = rd_text[safe] |> purrr::set_names(names(rd_topics)[safe]),
-    notes = notes
-  )
+  list(records = records, notes = notes)
 }
 
 # Manifest assembly -------------------------------------------------------------------
@@ -958,19 +960,18 @@ winning_rd <- function(files) {
   out <- list()
   for (path in paths) {
     entry <- files[[path]]
-    names_in_file <- names(entry$rd)
-    for (i in seq_along(entry$rd)) {
-      rd_name <- entry$records[[i]]$name
-      topic_file <- names_in_file[[i]]
-      if (rd_name %in% claimed || topic_file %in% claimed_files) {
+    for (record in entry$records) {
+      if (record$name %in% claimed || record$rd_file %in% claimed_files) {
         next
       }
-      claimed <- c(claimed, rd_name)
-      claimed_files <- c(claimed_files, topic_file)
-      out[[topic_file]] <- list(
-        text = entry$rd[[i]],
-        aliases = entry$records[[i]]$aliases
-      )
+      claimed <- c(claimed, record$name)
+      claimed_files <- c(claimed_files, record$rd_file)
+      if (record$rd_safe) {
+        out[[record$rd_file]] <- list(
+          text = record$rd_text,
+          aliases = record$aliases
+        )
+      }
     }
   }
   out
@@ -1100,7 +1101,6 @@ entry_for <- function(file, state) {
         hash = hash,
         error = conditionMessage(e),
         records = list(),
-        rd = list(),
         notes = character()
       )
   )

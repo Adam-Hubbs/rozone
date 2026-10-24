@@ -13,8 +13,13 @@ file_spec <- function(path, text, hash = paste0("hash-", path)) {
 }
 
 quiet <- function(code) {
-  utils::capture.output(result <- code, type = "message")
-  result
+  con <- file(nullfile(), "w")
+  sink(con, type = "message")
+  on.exit({
+    sink(type = "message")
+    close(con)
+  })
+  code
 }
 
 build_files <- function(
@@ -82,11 +87,15 @@ example_script_text <- function() {
 
 # A running sidecar process ----------------------------------------------------
 
-start_sidecar <- function(env = character(), .local_envir = parent.frame()) {
+start_sidecar <- function(
+  env = character(),
+  stdin = "|",
+  .local_envir = parent.frame()
+) {
   proc <- processx::process$new(
     rscript,
     c("--no-init-file", sidecar_path),
-    stdin = "|",
+    stdin = stdin,
     stdout = "|",
     stderr = "|",
     env = c("current", env),
