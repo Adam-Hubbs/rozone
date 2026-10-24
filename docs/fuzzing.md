@@ -74,7 +74,7 @@ fuzz/cran_corpus.sh            # optional seeds
 
 `-s none` follows Oak's choice (they measured ASan as much slower). Rozone is safe Rust, so ASan adds little. The libFuzzer `__sanitizer_*` dlsym warnings in the output are harmless.
 
-Status: all three targets compile. While `Index` methods were `todo!()`, `index_queries` panicked on the first input (`not yet implemented`), which is expected. Re-run once the core lands. Failures reproduce with `cargo +nightly fuzz run -s none --fuzz-dir fuzz <target> <artifact>`, and `tmin` shrinks them. Promote each minimized artifact to a named regression test in `rozone_core`, as Oak does.
+Status (2026-10-24, against the implemented core): each target ran 90 s on macOS arm64 with no crashes: `index_queries` 1.0M runs, `roxygen_block` 491k runs, `manifest_json` 3.9M runs. Failures reproduce with `cargo +nightly fuzz run -s none --fuzz-dir fuzz <target> <artifact>`, and `tmin` shrinks them. Promote each minimized artifact to a named regression test in `rozone_core`, as Oak does.
 
 ## 4. CI integration sketch
 
