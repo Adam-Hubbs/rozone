@@ -1,0 +1,23 @@
+import { readFileSync } from "node:fs";
+const [wasmPath, rPath, big] = process.argv.slice(2);
+const t0 = performance.now();
+const { instance } = await WebAssembly.instantiate(readFileSync(wasmPath));
+const t1 = performance.now();
+const { memory, alloc, count_documented, active_argument } = instance.exports;
+const pass = (text) => {
+  const bytes = new TextEncoder().encode(text);
+  const ptr = alloc(bytes.length);
+  new Uint8Array(memory.buffer, ptr, bytes.length).set(bytes);
+  return [ptr, bytes.length];
+};
+const example = readFileSync(rPath, "utf8");
+const [p, n] = pass(example);
+const offset = Buffer.byteLength(example.slice(0, example.indexOf("wmean({{ col }}, w") + 18));
+console.log(`instantiate: ${(t1 - t0).toFixed(1)} ms`);
+console.log(`documented functions: ${count_documented(p, n)}; active argument at ${offset}: ${active_argument(p, n, offset)}`);
+const bigText = readFileSync(big, "utf8");
+const [bp, bn] = pass(bigText);
+const t2 = performance.now();
+const count = count_documented(bp, bn);
+const t3 = performance.now();
+console.log(`big file (${(bn / 1e6).toFixed(2)} MB, ${bigText.split("\n").length} lines): ${count} documented fns in ${(t3 - t2).toFixed(1)} ms; wasm memory ${(memory.buffer.byteLength / 1e6).toFixed(1)} MB`);

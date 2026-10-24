@@ -1,0 +1,9 @@
+target/
+node_modules/
+*.vsix
+.vscode-test/
+out/
+dist/
+pkg/
+.claude/
+.Rhistory
