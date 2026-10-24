@@ -1,0 +1,80 @@
+name: Bump Air
+
+# Keeps the pinned posit-dev/air parser and its lionel-/biome fork in step with
+# Air's main branch (the Jarl #762 pattern). Opens a pull request; never pushes
+# to the default branch.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Resolve Air main and its biome fork revision
+        id: revs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          air_rev=$(git ls-remote https://github.com/posit-dev/air.git refs/heads/main | cut -f1)
+          gh api "repos/posit-dev/air/contents/Cargo.lock?ref=${air_rev}" \
+            -H "Accept: application/vnd.github.raw" > air-Cargo.lock
+          biome_rev=$(python3 -c '
+          import re, sys, tomllib
+          lock = tomllib.load(open("air-Cargo.lock", "rb"))
+          for pkg in lock["package"]:
+              m = re.search(r"lionel-/biome\?rev=([0-9a-f]{40})", pkg.get("source", ""))
+              if m:
+                  print(m.group(1))
+                  break
+          else:
+              sys.exit("no lionel-/biome rev in Air Cargo.lock")
+          ')
+          rm air-Cargo.lock
+          echo "air_rev=${air_rev}" >> "$GITHUB_OUTPUT"
+          echo "biome_rev=${biome_rev}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin revisions and update the lockfile
+        env:
+          AIR_REV: ${{ steps.revs.outputs.air_rev }}
+          BIOME_REV: ${{ steps.revs.outputs.biome_rev }}
+        run: |
+          set -euo pipefail
+          sed -i -E \
+            -e "/^(air_r_parser|air_r_syntax) = /s/rev = \"[0-9a-f]{40}\"/rev = \"${AIR_REV}\"/" \
+            -e "/^biome_rowan = /s/rev = \"[0-9a-f]{40}\"/rev = \"${BIOME_REV}\"/" \
+            Cargo.toml
+          cargo update -p air_r_parser -p air_r_syntax -p biome_rowan
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bot/bump-air
+          delete-branch: true
+          add-paths: |
+            Cargo.toml
+            Cargo.lock
+          commit-message: "Bump Air parser to ${{ steps.revs.outputs.air_rev }}"
+          title: "Bump Air parser and biome fork"
+          body: |
+            Automated weekly bump.
+
+            - `air_r_parser`, `air_r_syntax`: `posit-dev/air` at `${{ steps.revs.outputs.air_rev }}`
+            - `biome_rowan`: `lionel-/biome` at `${{ steps.revs.outputs.biome_rev }}` (the rev Air's `Cargo.lock` pins)
+
+            `cargo test --workspace` passed in this workflow run.
