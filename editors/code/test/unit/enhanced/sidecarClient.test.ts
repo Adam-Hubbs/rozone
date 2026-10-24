@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { defaultSpawn, SidecarClient, SidecarError } from "../../../src/enhanced/sidecarClient.ts";
 import type { ExitInfo, SpawnFn } from "../../../src/enhanced/sidecarClient.ts";
 
-const fakeScript = fileURLToPath(new URL("../../fixtures/fake-sidecar/fake-sidecar.mjs", import.meta.url));
+const fakeScript = fileURLToPath(new URL("../../fixtures/fake-sidecar/fake-sidecar.ts", import.meta.url));
 
 let dir: string;
 let recordFile: string;

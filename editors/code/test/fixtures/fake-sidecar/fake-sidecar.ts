@@ -22,15 +22,15 @@ const delayMs = Number(process.env.FAKE_DELAY_MS ?? 200);
 const crashAfter = Number(process.env.FAKE_CRASH_AFTER ?? 1);
 const eol = modes.has("crlf") ? "\r\n" : "\n";
 
-const record = (entry) => {
+const record = (entry: unknown) => {
   if (recordFile) appendFileSync(recordFile, `${JSON.stringify(entry)}\n`);
 };
 
-const exitAfterFlush = (code) => process.stdout.write("", () => process.exit(code));
+const exitAfterFlush = (code: number) => process.stdout.write("", () => process.exit(code));
 
-const sleep =(ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function send(message) {
+async function send(message: unknown) {
   const text = `${JSON.stringify(message)}${eol}`;
   if (!modes.has("split")) {
     process.stdout.write(text);
@@ -75,7 +75,9 @@ if (!modes.has("hang-hello")) {
 let answered = 0;
 let queue = Promise.resolve();
 
-function handle(request) {
+type Reply = { result?: unknown; error?: { message: string }; exit?: number };
+type FileArg = { path: string; hash: string };
+function handle(request: { id: number; method: string; params?: any }): Reply {
   switch (request.method) {
     case "ping":
       return { result: { pong: true } };
@@ -83,17 +85,17 @@ function handle(request) {
       return { result: { ok: true }, exit: 0 };
     case "build": {
       const { files = [], install = false, lib_root: libRoot = null } = request.params ?? {};
-      const topics = files.map((f) => `fn_${basename(f.path).replace(/\.[Rr]$/, "")}`);
+      const topics = files.map((f: FileArg) => `fn_${basename(f.path).replace(/\.[Rr]$/, "")}`);
       return {
         result: {
           manifest: {
             version: 1,
-            files: files.map((f, i) => ({ path: f.path, content_hash: f.hash, topics: [{ name: topics[i], aliases: [topics[i]], title: "Fake" }] })),
+            files: files.map((f: FileArg, i: number) => ({ path: f.path, content_hash: f.hash, topics: [{ name: topics[i], aliases: [topics[i]], title: "Fake" }] })),
           },
           lib_dir: install && libRoot ? `${libRoot}/lib-1` : null,
           topics,
           cache_hits: 0,
-          errors: files.filter((f) => /broken/.test(f.path)).map((f) => ({ path: f.path, message: "parse error" })),
+          errors: files.filter((f: FileArg) => /broken/.test(f.path)).map((f: FileArg) => ({ path: f.path, message: "parse error" })),
         },
       };
     }
@@ -106,7 +108,7 @@ function handle(request) {
 
 const rl = createInterface({ input: process.stdin });
 rl.on("line", (line) => {
-  let request;
+  let request: { id: number; method: string; params?: unknown };
   try {
     request = JSON.parse(line);
   } catch {
