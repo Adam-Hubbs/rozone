@@ -1,0 +1,37 @@
+[package]
+name = "rozone-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Own workspace so `cargo test` at the repo root never builds this crate.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+rozone_core = { path = "../crates/rozone_core" }
+
+[[bin]]
+name = "index_queries"
+path = "fuzz_targets/index_queries.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "roxygen_block"
+path = "fuzz_targets/roxygen_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest_json"
+path = "fuzz_targets/manifest_json.rs"
+test = false
+doc = false
+bench = false
