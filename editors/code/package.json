@@ -1,0 +1,68 @@
+{
+  "name": "rozone",
+  "displayName": "rozone: roxygen docs for R scripts",
+  "description": "Hover docs and signature help from roxygen comments in plain R scripts.",
+  "version": "0.1.0",
+  "publisher": "rozone",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": ["Programming Languages"],
+  "type": "module",
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onLanguage:r",
+    "workspaceContains:**/*.{R,r}"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In untrusted workspaces rozone only parses files; it never runs R.",
+      "restrictedConfigurations": ["rozone.r.path", "rozone.enhanced.enabled"]
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "Only the base tier runs in virtual workspaces."
+    }
+  },
+  "contributes": {
+    "commands": [
+      { "command": "rozone.openDocumentation", "title": "rozone: Open Documentation" },
+      { "command": "rozone.showOutput", "title": "rozone: Show Output" },
+      { "command": "rozone.restartSidecar", "title": "rozone: Restart R Sidecar" }
+    ],
+    "configuration": {
+      "title": "rozone",
+      "properties": {
+        "rozone.enhanced.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "In trusted workspaces, run a background R process with roxygen2 for roxygen2-exact docs and cross-package inheritance."
+        },
+        "rozone.r.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Rscript. Empty: use the Positron session's R, then Rscript on PATH."
+        },
+        "rozone.sidecar.idleTimeoutMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "Stop the R sidecar after this many idle minutes. It restarts on the next save."
+        },
+        "rozone.helpInjection": {
+          "type": "boolean",
+          "default": true,
+          "description": "In Positron, load script docs into the R session so ?fn, the Help pane and Ark's completions show them."
+        },
+        "rozone.files.exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/renv/**", "**/packrat/**", "**/node_modules/**", "**/.git/**"],
+          "description": "Glob patterns of R files not to index."
+        }
+      }
+    }
+  }
+}
