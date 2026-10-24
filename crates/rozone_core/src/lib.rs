@@ -1,6 +1,19 @@
 //! Pure-Rust roxygen documentation for R scripts. See `docs/contracts.md` §1.
 
+mod call;
+mod extract;
+mod index;
+mod manifest;
+mod markdown;
+mod resolve;
+mod roxygen;
+mod strip;
+mod text;
+
 use serde::Serialize;
+
+pub use index::Index;
+pub use text::content_hash;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Range {
@@ -71,50 +84,11 @@ impl std::fmt::Display for ManifestError {
 
 impl std::error::Error for ManifestError {}
 
-#[derive(Debug, Default)]
-pub struct Index {}
-
-impl Index {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn update_file(&mut self, _path: &str, _text: &str) {
-        todo!()
-    }
-
-    pub fn remove_file(&mut self, _path: &str) {
-        todo!()
-    }
-
-    pub fn load_manifest(&mut self, _json: &str) -> Result<(), ManifestError> {
-        todo!()
-    }
-
-    pub fn clear_manifest(&mut self) {
-        todo!()
-    }
-
-    pub fn hover(&self, _path: &str, _offset: u32) -> Option<Hover> {
-        todo!()
-    }
-
-    pub fn signature_help(&self, _path: &str, _offset: u32) -> Option<SignatureHelp> {
-        todo!()
-    }
-
-    pub fn documentation(&self, _name: &str, _from_path: Option<&str>) -> Option<String> {
-        todo!()
-    }
-
-    pub fn documented_functions(&self) -> Vec<FunctionSummary> {
-        todo!()
-    }
-}
-
-pub fn content_hash(text: &str) -> String {
-    let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-    });
-    format!("{hash:016x}")
+/// Public for tooling and tests; the stable surface is [`Index`].
+pub mod internals {
+    pub use crate::call::match_args;
+    pub use crate::markdown::convert_links;
+    pub use crate::roxygen::{Block, parse_block};
+    pub use crate::strip::strip_r_code;
+    pub use crate::text::TextMap;
 }

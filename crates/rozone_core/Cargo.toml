@@ -11,3 +11,7 @@ air_r_syntax.workspace = true
 biome_rowan.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+proptest = "1"
