@@ -3,12 +3,13 @@ import { createCoalescer } from "./coalescer.ts";
 import { createExcludeMatcher, toFindFilesExclude } from "./globs.ts";
 import type { IndexClient } from "./indexClient.ts";
 import { createIndexedSet, type Origin } from "./indexedSet.ts";
-import { exceedsSizeLimit, MAX_FILE_BYTES, pathKey, relativeTo } from "./paths.ts";
+import { exceedsSizeLimit, isRFile, MAX_FILE_BYTES, pathKey, relativeTo } from "./paths.ts";
 import type { FileText } from "./types.ts";
 
 const R_GLOB = "**/*.{R,r}";
 const READ_CONCURRENCY = 32;
 const SEND_CHUNK = 64;
+const FIND_RETRIES = 5;
 
 export interface Discovery extends vscode.Disposable {
   /** Resolves once the first workspace scan has been sent to the index. */
@@ -38,8 +39,10 @@ export function createDiscovery(client: IndexClient, log: vscode.LogOutputChanne
   const logFailure = (what: string) => (error: unknown) =>
     log.warn(`${what}: ${error instanceof Error ? error.message : String(error)}`);
 
+  // Positron disables its R language support in untrusted workspaces, leaving .R files as plain text.
   const isRDocument = (doc: vscode.TextDocument) =>
-    doc.languageId === "r" && (doc.uri.scheme === "file" || doc.uri.scheme === "untitled" || !!vscode.workspace.getWorkspaceFolder(doc.uri));
+    (doc.languageId === "r" && (doc.uri.scheme === "file" || doc.uri.scheme === "untitled" || !!vscode.workspace.getWorkspaceFolder(doc.uri))) ||
+    (doc.uri.scheme === "file" && isRFile(doc.uri.fsPath));
 
   const originOf = (uri: vscode.Uri): Origin => {
     if (uri.scheme === "untitled") return "untitled";
@@ -147,14 +150,31 @@ export function createDiscovery(client: IndexClient, log: vscode.LogOutputChanne
     }
   };
 
-  const scan = async () => {
-    const started = performance.now();
+  const findOnce = async () => {
     const found = new Map<string, vscode.Uri>();
     const exclude = toFindFilesExclude(excludePatterns);
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
       const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, R_GLOB), exclude);
       for (const uri of uris) if (!excluded(uri)) found.set(pathKey(uri), uri);
     }
+    return found;
+  };
+
+  // Positron can answer findFiles with nothing while its file search is still starting, so an empty result is retried.
+  const findWithRetry = async () => {
+    let found = await findOnce();
+    for (let attempt = 1; attempt <= FIND_RETRIES && found.size === 0; attempt++) {
+      if (!vscode.workspace.workspaceFolders?.length) break;
+      log.debug(`findFiles returned nothing; retrying (${attempt}/${FIND_RETRIES})`);
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+      found = await findOnce();
+    }
+    return found;
+  };
+
+  const scan = async () => {
+    const started = performance.now();
+    const found = await findWithRetry();
     for (const path of indexed.paths()) {
       if (indexed.originOf(path) === "workspace" && !found.has(path)) drop(path);
     }

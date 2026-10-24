@@ -40,7 +40,7 @@ export function createDocPreview(client: IndexClient, discovery: Discovery, log:
 
   const nameUnderCursor = async () => {
     const editor = vscode.window.activeTextEditor;
-    if (!editor || editor.document.languageId !== "r") return undefined;
+    if (!editor || editor.document.languageId !== "r" && !/\.[Rr]$/.test(editor.document.uri.fsPath)) return undefined;
     const path = pathKey(editor.document.uri);
     discovery.flushPending();
     const hover = await client.hover(path, editor.document.offsetAt(editor.selection.active));

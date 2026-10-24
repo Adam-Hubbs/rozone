@@ -10,6 +10,7 @@ import {
   hoverText,
   isPositron,
   openFixture,
+  openProbe,
   openUntitled,
   positionOf,
   resetEditors,
@@ -191,7 +192,7 @@ suite("live edits", () => {
     const doc = await openFixture("inherit", "base.R");
     await vscode.window.showTextDocument(doc);
     await appendText(doc, "\n#' Only live\n#'\n#' @param a A.\nonly_live <- function(a) a\n");
-    const other = await openUntitled("only_live(1)\n");
+    const other = await openProbe("only_live(1)\n");
     const hovers = await hoversAt(other, new vscode.Position(0, 3));
     assert.match(hoverText(hovers), /Only live/);
   });
@@ -200,7 +201,7 @@ suite("live edits", () => {
     const doc = await openFixture("inherit", "base.R");
     await vscode.window.showTextDocument(doc);
     await appendText(doc, "\n#' Ghost\n#'\n#' @param a A.\nghost_fn <- function(a) a\n");
-    const probe = await openUntitled("ghost_fn(1)\n");
+    const probe = await openProbe("ghost_fn(1)\n");
     assert.match(hoverText(await hoversAt(probe, new vscode.Position(0, 3))), /Ghost/);
 
     await vscode.window.showTextDocument(doc);
@@ -211,6 +212,11 @@ suite("live edits", () => {
 });
 
 suite("untitled documents", () => {
+  setup(async function () {
+    const probe = await openUntitled("");
+    if (probe.languageId !== "r") this.skip();
+  });
+
   test("are indexed while open and excluded from indexedFiles()", async () => {
     const doc = await openUntitled("#' Scratch fn\n#'\n#' @param a A.\nscratch_fn <- function(a) a\nscratch_fn(1)\n");
     const hovers = await hoversAt(doc, positionOf(doc, "scratch_fn(1)", 3));
@@ -228,7 +234,7 @@ suite("untitled documents", () => {
 
   test("closing removes them from the index", async () => {
     const doc = await openUntitled("#' Gone soon\n#'\n#' @param a A.\ngone_soon <- function(a) a\n");
-    const probe = await openUntitled("gone_soon(1)\n");
+    const probe = await openProbe("gone_soon(1)\n");
     assert.match(hoverText(await hoversAt(probe, new vscode.Position(0, 3))), /Gone soon/);
     await vscode.window.showTextDocument(doc);
     await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
@@ -240,7 +246,7 @@ suite("workspace files", () => {
   test("file create, change and delete update the index", async () => {
     const uri = fixture("created_later.R");
     const path = fsPathOf("created_later.R");
-    const probe = await openUntitled("created_later_fn(1)\n");
+    const probe = await openProbe("created_later_fn(1)\n");
     const probeHover = () => hoversAt(probe, new vscode.Position(0, 3));
 
     await vscode.workspace.fs.writeFile(uri, Buffer.from("#' First text\n#'\n#' @param a A.\ncreated_later_fn <- function(a) a\n"));
@@ -265,7 +271,7 @@ suite("workspace files", () => {
   });
 
   test("excluded files are not documented", async () => {
-    const doc = await openUntitled("hidden_fn(1)\n");
+    const doc = await openProbe("hidden_fn(1)\n");
     assert.equal((await hoversAt(doc, new vscode.Position(0, 3))).length, 0);
   });
 

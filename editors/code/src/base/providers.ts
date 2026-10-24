@@ -6,6 +6,7 @@ import { pathKey } from "./paths.ts";
 
 export const R_SELECTOR: vscode.DocumentSelector = [
   { language: "r", scheme: "file" },
+  { pattern: "**/*.{R,r}", scheme: "file" },
   { language: "r", scheme: "untitled" },
 ];
 

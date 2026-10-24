@@ -71,6 +71,26 @@ export async function openUntitled(content: string): Promise<vscode.TextDocument
   return vscode.workspace.openTextDocument({ language: "r", content });
 }
 
+const scratchFiles: vscode.Uri[] = [];
+let scratchCounter = 0;
+
+/**
+ * A throwaway R document to query from. Untitled R documents need the R language mode, which Positron
+ * disables in untrusted workspaces; there a scratch file in the workspace stands in.
+ */
+export async function openProbe(content: string): Promise<vscode.TextDocument> {
+  const untitled = await openUntitled(content);
+  if (untitled.languageId === "r") return untitled;
+  const uri = fixture(`scratch_probe_${scratchCounter++}.R`);
+  await vscode.workspace.fs.writeFile(uri, Buffer.from(content));
+  scratchFiles.push(uri);
+  return vscode.workspace.openTextDocument(uri);
+}
+
+export async function removeScratchFiles(): Promise<void> {
+  for (const uri of scratchFiles.splice(0)) await vscode.workspace.fs.delete(uri).then(undefined, () => {});
+}
+
 export async function hoversAt(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Hover[]> {
   const hovers = await vscode.commands.executeCommand<vscode.Hover[]>("vscode.executeHoverProvider", document.uri, position);
   return hovers ?? [];
@@ -111,6 +131,7 @@ export async function resetEditors(): Promise<void> {
     );
   }
   await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  await removeScratchFiles();
 }
 
 export function percentile(values: number[], p: number): number {
