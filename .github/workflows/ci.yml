@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (core, wasm build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Build wasm target
+        run: cargo build -p rozone_wasm --target wasm32-unknown-unknown --release
+
+  wasm:
+    name: WASM bindings
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Install binaryen
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: editors/code/package-lock.json
+      - run: npm --prefix editors/code ci
+      - name: Build WASM
+        run: node editors/code/scripts/build-wasm.ts
+      - name: WASM tests
+        run: npm --prefix editors/code run test:wasm
+
+  sidecar:
+    name: R sidecar tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            roxygen2
+            jsonlite
+            testthat
+            processx
+            withr
+            purrr
+            dplyr
+      - name: Run sidecar tests
+        run: Rscript editors/code/r/run-tests.R
+
+  extension:
+    name: Extension (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Install binaryen (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - name: Install binaryen (macOS)
+        if: runner.os == 'macOS'
+        run: brew install binaryen
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: editors/code/package-lock.json
+      - run: npm --prefix editors/code ci
+      - name: Build WASM
+        run: node editors/code/scripts/build-wasm.ts
+      - name: Typecheck
+        run: npm --prefix editors/code run typecheck
+      - name: Unit tests
+        run: npm --prefix editors/code run test:unit
+      - name: Integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm --prefix editors/code run test:integration
+      - name: Integration tests
+        if: runner.os != 'Linux'
+        run: npm --prefix editors/code run test:integration
+
+  package:
+    name: Package VSIX
+    needs: [rust, wasm, sidecar, extension]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Install binaryen
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: editors/code/package-lock.json
+      - run: npm --prefix editors/code ci
+      - name: Build WASM
+        run: node editors/code/scripts/build-wasm.ts
+      - name: Package
+        run: npm --prefix editors/code run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rozone-vsix
+          path: editors/code/*.vsix
+          if-no-files-found: error
