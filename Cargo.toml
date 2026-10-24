@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/rozone_core", "crates/rozone_wasm"]
+exclude = ["spike/air_roxygen"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+# Pin Air and its biome fork to the same revs; air_r_syntax types must match biome_rowan's.
+air_r_parser = { git = "https://github.com/posit-dev/air", rev = "a2b36beaacf02dd921b7d0dedb8fda1d23c00b3d" }
+air_r_syntax = { git = "https://github.com/posit-dev/air", rev = "a2b36beaacf02dd921b7d0dedb8fda1d23c00b3d" }
+biome_rowan = { git = "https://github.com/lionel-/biome", rev = "a1296ea6ba363d8b8d8f02181b2a4ce9315c5ef9" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rozone_core = { path = "crates/rozone_core" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

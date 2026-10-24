@@ -1,0 +1,13 @@
+[package]
+name = "rozone_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+air_r_parser.workspace = true
+air_r_syntax.workspace = true
+biome_rowan.workspace = true
+serde.workspace = true
+serde_json.workspace = true
