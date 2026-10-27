@@ -7,28 +7,34 @@ wmean 246..251 title=Some("Weighted mean of a column")
 summarise_wmean 551..566 title=Some("Summarise a data frame column with [wmean()]")
 
 # documentation(wmean)
-# Weighted mean of a column
+_wmean {basic.R}_
 
-`wmean` is defined in `basic.R`.
+## Weighted mean of a column
+
+------
+
+### Description
+
+Computes a weighted mean, dropping `NA` pairs.
+
+### Usage
 
 ```r
 wmean(x, w = rep(1, length(x)))
 ```
 
-## Description
+### Arguments
 
-Computes a weighted mean, dropping `NA` pairs.
+|     |     |
+| --- | --- |
+| `x` | A numeric vector. |
+| `w` | Weights, the same length as `x`. |
 
-## Arguments
-
-- `x`: A numeric vector.
-- `w`: Weights, the same length as `x`.
-
-## Returns
+### Value
 
 A length-1 double.
 
-## Examples
+### Examples
 
 ```r
 wmean(1:3, c(1, 1, 2))
@@ -36,70 +42,116 @@ wmean(1:3, c(1, 1, 2))
 
 # hover at definition of wmean
 hover: Definition wmean range=246..251 source=Static
+  | _wmean {basic.R}_
+  | 
+  | ## Weighted mean of a column
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Computes a weighted mean, dropping `NA` pairs.
+  | 
+  | ### Usage
+  | 
   | ```r
   | wmean(x, w = rep(1, length(x)))
   | ```
   | 
-  | **Weighted mean of a column**
+  | ### Arguments
   | 
-  | Computes a weighted mean, dropping `NA` pairs.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A numeric vector. |
+  | | `w` | Weights, the same length as `x`. |
   | 
-  | **Parameters**
-  | 
-  | - `x`: A numeric vector.
-  | - `w`: Weights, the same length as `x`.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A length-1 double.
+  | 
+  | ### Examples
+  | 
+  | ```r
+  | wmean(1:3, c(1, 1, 2))
+  | ```
 
 # documentation(summarise_wmean)
-# Summarise a data frame column with `wmean()`
+_summarise_wmean {basic.R}_
 
-`summarise_wmean` is defined in `basic.R`.
+## Summarise a data frame column with `wmean()`
+
+------
+
+### Usage
 
 ```r
 summarise_wmean(data, col, w)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: A data frame.
-- `col`: <`data-masked`> Column to summarise.
-- `w`: Weights, the same length as `x`.
+|     |     |
+| --- | --- |
+| `data` | A data frame. |
+| `col` | <`data-masked`> Column to summarise. |
+| `w` | Weights, the same length as `x`. |
 
 # hover at definition of summarise_wmean
 hover: Definition summarise_wmean range=551..566 source=Static
+  | _summarise_wmean {basic.R}_
+  | 
+  | ## Summarise a data frame column with `wmean()`
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | summarise_wmean(data, col, w)
   | ```
   | 
-  | **Summarise a data frame column with `wmean()`**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: A data frame.
-  | - `col`: <`data-masked`> Column to summarise.
-  | - `w`: Weights, the same length as `x`.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | A data frame. |
+  | | `col` | <`data-masked`> Column to summarise. |
+  | | `w` | Weights, the same length as `x`. |
 
 # 28:2  wm¦ean(1:3)
 hover: Call wmean range=676..681 source=Static
+  | _wmean {basic.R}_
+  | 
+  | ## Weighted mean of a column
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Computes a weighted mean, dropping `NA` pairs.
+  | 
+  | ### Usage
+  | 
   | ```r
   | wmean(x, w = rep(1, length(x)))
   | ```
   | 
-  | **Weighted mean of a column**
+  | ### Arguments
   | 
-  | Computes a weighted mean, dropping `NA` pairs.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A numeric vector. |
+  | | `w` | Weights, the same length as `x`. |
   | 
-  | **Parameters**
-  | 
-  | - `x`: A numeric vector.
-  | - `w`: Weights, the same length as `x`.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A length-1 double.
+  | 
+  | ### Examples
+  | 
+  | ```r
+  | wmean(1:3, c(1, 1, 2))
+  | ```
 signature: none
 
 # 29:11  wmean(1:3, ¦)
@@ -112,22 +164,38 @@ signature: wmean(x, w = rep(1, length(x))) active=0 (x)
 
 # 31:9  map(xs, w¦mean)
 hover: Identifier wmean range=722..727 source=Static
+  | _wmean {basic.R}_
+  | 
+  | ## Weighted mean of a column
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Computes a weighted mean, dropping `NA` pairs.
+  | 
+  | ### Usage
+  | 
   | ```r
   | wmean(x, w = rep(1, length(x)))
   | ```
   | 
-  | **Weighted mean of a column**
+  | ### Arguments
   | 
-  | Computes a weighted mean, dropping `NA` pairs.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A numeric vector. |
+  | | `w` | Weights, the same length as `x`. |
   | 
-  | **Parameters**
-  | 
-  | - `x`: A numeric vector.
-  | - `w`: Weights, the same length as `x`.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A length-1 double.
+  | 
+  | ### Examples
+  | 
+  | ```r
+  | wmean(1:3, c(1, 1, 2))
+  | ```
 signature: none
 
 # 32:1  w¦mean <- 1

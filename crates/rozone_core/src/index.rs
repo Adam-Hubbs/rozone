@@ -150,7 +150,12 @@ impl Index {
         Some(Hover {
             name: def.def().name.clone(),
             kind,
-            markdown: markdown::hover(&signature.label, &doc),
+            markdown: markdown::help_page(
+                &def.def().name,
+                file_label(def.path),
+                &signature.label,
+                &doc,
+            ),
             range: self.range_in(file, ident.range),
             source: doc.source,
         })
@@ -212,7 +217,7 @@ impl Index {
         let def = self.lookup(name, from_path)?;
         let doc = self.resolve(def)?;
         let signature = markdown::signature(&def.def().name, def.formals());
-        Some(markdown::page(
+        Some(markdown::help_page(
             &def.def().name,
             file_label(def.path),
             &signature.label,

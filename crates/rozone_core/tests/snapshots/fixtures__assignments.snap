@@ -10,9 +10,13 @@ paren 129..134 title=Some("Parenthesised")
 outer 175..180 title=Some("Not top level")
 
 # documentation(eq)
-# Equals
+_eq {assignments.R}_
 
-`eq` is defined in `assignments.R`.
+## Equals
+
+------
+
+### Usage
 
 ```r
 eq(a)
@@ -20,16 +24,26 @@ eq(a)
 
 # hover at definition of eq
 hover: Definition eq range=10..12 source=Static
+  | _eq {assignments.R}_
+  | 
+  | ## Equals
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | eq(a)
   | ```
-  | 
-  | **Equals**
 
 # documentation(sup)
-# Super
+_sup {assignments.R}_
 
-`sup` is defined in `assignments.R`.
+## Super
+
+------
+
+### Usage
 
 ```r
 sup(a)
@@ -37,16 +51,26 @@ sup(a)
 
 # hover at definition of sup
 hover: Definition sup range=42..45 source=Static
+  | _sup {assignments.R}_
+  | 
+  | ## Super
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | sup(a)
   | ```
-  | 
-  | **Super**
 
 # documentation(arrow)
-# Right arrow
+_arrow {assignments.R}_
 
-`arrow` is defined in `assignments.R`.
+## Right arrow
+
+------
+
+### Usage
 
 ```r
 arrow(a)
@@ -54,16 +78,26 @@ arrow(a)
 
 # hover at definition of arrow
 hover: Definition arrow range=105..110 source=Static
+  | _arrow {assignments.R}_
+  | 
+  | ## Right arrow
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | arrow(a)
   | ```
-  | 
-  | **Right arrow**
 
 # documentation(paren)
-# Parenthesised
+_paren {assignments.R}_
 
-`paren` is defined in `assignments.R`.
+## Parenthesised
+
+------
+
+### Usage
 
 ```r
 paren(a)
@@ -71,16 +105,26 @@ paren(a)
 
 # hover at definition of paren
 hover: Definition paren range=129..134 source=Static
+  | _paren {assignments.R}_
+  | 
+  | ## Parenthesised
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | paren(a)
   | ```
-  | 
-  | **Parenthesised**
 
 # documentation(outer)
-# Not top level
+_outer {assignments.R}_
 
-`outer` is defined in `assignments.R`.
+## Not top level
+
+------
+
+### Usage
 
 ```r
 outer()
@@ -88,11 +132,17 @@ outer()
 
 # hover at definition of outer
 hover: Definition outer range=175..180 source=Static
+  | _outer {assignments.R}_
+  | 
+  | ## Not top level
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | outer()
   | ```
-  | 
-  | **Not top level**
 
 # 17:8    inner(¦1)
 hover: none

@@ -33,7 +33,7 @@ fn resolves_in_the_same_file_first() {
             .unwrap()
             .lines()
             .next(),
-        Some("# From b")
+        Some("_a_fn {b.R}_")
     );
     assert_eq!(
         index
@@ -41,7 +41,7 @@ fn resolves_in_the_same_file_first() {
             .unwrap()
             .lines()
             .next(),
-        Some("# From a")
+        Some("_a_fn {a.R}_")
     );
 }
 
@@ -57,7 +57,7 @@ fn otherwise_the_lexicographically_smallest_path() {
     assert!(hover.markdown.contains("From m"));
     assert_eq!(
         index.documentation("a_fn", None).unwrap().lines().next(),
-        Some("# From m")
+        Some("_a_fn {m.R}_")
     );
     assert_eq!(
         index
@@ -65,7 +65,7 @@ fn otherwise_the_lexicographically_smallest_path() {
             .unwrap()
             .lines()
             .next(),
-        Some("# From m")
+        Some("_a_fn {m.R}_")
     );
 }
 
@@ -273,20 +273,22 @@ mod manifest {
             .unwrap();
         assert_eq!(hover.source, DocSource::Manifest);
         assert!(
-            hover.markdown.starts_with("```r\nwmean(x, w = 1)\n```"),
+            hover
+                .markdown
+                .contains("### Usage\n\n```r\nwmean(x, w = 1)\n```"),
             "signature stays static"
         );
-        assert!(hover.markdown.contains("**Manifest title**"));
+        assert!(hover.markdown.contains("## Manifest title"));
         assert!(
             hover.markdown.contains("Manifest `wmean()` description."),
             "links go through the same path"
         );
-        assert!(hover.markdown.contains("- `w`: Manifest w."));
-        assert!(hover.markdown.contains("**Notes**\n\nA note."));
+        assert!(hover.markdown.contains("| `w` | Manifest w. |"));
+        assert!(hover.markdown.contains("### Notes\n\nA note."));
         assert!(!hover.markdown.contains("Weighted mean"));
 
         let page = index.documentation("wmean", None).unwrap();
-        assert!(page.contains("## Details\n\nDeep details."));
+        assert!(page.contains("### Details\n\nDeep details."));
         assert!(page.contains("```r\nwmean(1)\n```"));
     }
 
@@ -345,7 +347,7 @@ mod manifest {
             .unwrap();
         let hover = index.hover("/s.R", 1).unwrap();
         assert_eq!(hover.source, DocSource::Manifest);
-        assert!(hover.markdown.starts_with("```r\nwm(x)\n```"));
+        assert!(hover.markdown.starts_with("_wm {s.R}_"));
     }
 
     #[test]
@@ -425,7 +427,7 @@ mod manifest {
             manifest_for("/s.R", WMEAN, topic).replace("\"files\"", "\"extra\":[1],\"files\"");
         index.load_manifest(&json).unwrap();
         let hover = index.hover("/s.R", offset_of(WMEAN, "wmean <-")).unwrap();
-        assert!(hover.markdown.contains("**T**"));
+        assert!(hover.markdown.contains("## T"));
     }
 
     #[test]
@@ -439,7 +441,7 @@ mod manifest {
             .hover("/s.R", offset_of(WMEAN, "wmean <-"))
             .unwrap()
             .markdown;
-        assert!(md.contains("- `x`: X.\n- `w`: W."), "{md}");
+        assert!(md.contains("| `x` | X. |\n| `w` | W. |"), "{md}");
         assert!(!md.contains("gone"));
     }
 }

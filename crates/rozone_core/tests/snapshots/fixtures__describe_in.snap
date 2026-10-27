@@ -9,106 +9,152 @@ area_nodesc 258..269 title=None
 orphan 332..338 title=Some("Orphan")
 
 # documentation(area)
-# Area of a shape
+_area {describe.R}_
 
-`area` is defined in `describe.R`.
+## Area of a shape
+
+------
 
 *Shares its help page with `area_circle()`, `area_nodesc()`.*
+
+### Description
+
+Computes the area.
+
+### Usage
 
 ```r
 area(shape, ...)
 ```
 
-## Description
+### Arguments
 
-Computes the area.
-
-## Arguments
-
-- `shape`: A shape.
-- `...`: Extra.
+|     |     |
+| --- | --- |
+| `shape` | A shape. |
+| `...` | Extra. |
 
 # hover at definition of area
 hover: Definition area range=93..97 source=Static
+  | _area {describe.R}_
+  | 
+  | ## Area of a shape
+  | 
+  | ------
+  | 
+  | *Shares its help page with `area_circle()`, `area_nodesc()`.*
+  | 
+  | ### Description
+  | 
+  | Computes the area.
+  | 
+  | ### Usage
+  | 
   | ```r
   | area(shape, ...)
   | ```
   | 
-  | **Area of a shape**
+  | ### Arguments
   | 
-  | *Shares its help page with `area_circle()`, `area_nodesc()`.*
-  | 
-  | Computes the area.
-  | 
-  | **Parameters**
-  | 
-  | - `shape`: A shape.
-  | - `...`: Extra.
+  | |     |     |
+  | | --- | --- |
+  | | `shape` | A shape. |
+  | | `...` | Extra. |
 
 # documentation(area_circle)
-# Area of a circle
+_area_circle {describe.R}_
 
-`area_circle` is defined in `describe.R`.
+## Area of a circle
+
+------
 
 *Part of the documentation of `area()`.*
+
+### Usage
 
 ```r
 area_circle(shape, r)
 ```
 
-## Arguments
+### Arguments
 
-- `shape`: A shape.
-- `r`: Radius.
+|     |     |
+| --- | --- |
+| `shape` | A shape. |
+| `r` | Radius. |
 
 # hover at definition of area_circle
 hover: Definition area_circle range=198..209 source=Static
+  | _area_circle {describe.R}_
+  | 
+  | ## Area of a circle
+  | 
+  | ------
+  | 
+  | *Part of the documentation of `area()`.*
+  | 
+  | ### Usage
+  | 
   | ```r
   | area_circle(shape, r)
   | ```
   | 
-  | **Area of a circle**
+  | ### Arguments
   | 
-  | *Part of the documentation of `area()`.*
-  | 
-  | **Parameters**
-  | 
-  | - `shape`: A shape.
-  | - `r`: Radius.
+  | |     |     |
+  | | --- | --- |
+  | | `shape` | A shape. |
+  | | `r` | Radius. |
 
 # documentation(area_nodesc)
-# area_nodesc
+_area_nodesc {describe.R}_
 
-`area_nodesc` is defined in `describe.R`.
+------
 
 *Part of the documentation of `area()`.*
+
+### Usage
 
 ```r
 area_nodesc(shape)
 ```
 
-## Arguments
+### Arguments
 
-- `shape`: A shape.
+|     |     |
+| --- | --- |
+| `shape` | A shape. |
 
 # hover at definition of area_nodesc
 hover: Definition area_nodesc range=258..269 source=Static
+  | _area_nodesc {describe.R}_
+  | 
+  | ------
+  | 
+  | *Part of the documentation of `area()`.*
+  | 
+  | ### Usage
+  | 
   | ```r
   | area_nodesc(shape)
   | ```
   | 
-  | *Part of the documentation of `area()`.*
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `shape`: A shape.
+  | |     |     |
+  | | --- | --- |
+  | | `shape` | A shape. |
 
 # documentation(orphan)
-# Orphan
+_orphan {describe.R}_
 
-`orphan` is defined in `describe.R`.
+## Orphan
+
+------
 
 *Part of the documentation of `missing_parent()`.*
+
+### Usage
 
 ```r
 orphan(x)
@@ -116,13 +162,19 @@ orphan(x)
 
 # hover at definition of orphan
 hover: Definition orphan range=332..338 source=Static
+  | _orphan {describe.R}_
+  | 
+  | ## Orphan
+  | 
+  | ------
+  | 
+  | *Part of the documentation of `missing_parent()`.*
+  | 
+  | ### Usage
+  | 
   | ```r
   | orphan(x)
   | ```
-  | 
-  | **Orphan**
-  | 
-  | *Part of the documentation of `missing_parent()`.*
 
 # 19:12  area_circle(¦)
 hover: none

@@ -6,37 +6,51 @@ expression: "common :: report(\"calls.R\")"
 f 137..138 title=Some("Compute things")
 
 # documentation(f)
-# Compute things
+_f {calls.R}_
 
-`f` is defined in `calls.R`.
+## Compute things
+
+------
+
+### Usage
 
 ```r
 f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8)
 ```
 
-## Arguments
+### Arguments
 
-- `x`: The x.
-- `na.rm`: Remove NAs.
-- `names`: Names.
-- `...`: Extra.
-- `tol`: Tolerance.
+|     |     |
+| --- | --- |
+| `x` | The x. |
+| `na.rm` | Remove NAs. |
+| `names` | Names. |
+| `...` | Extra. |
+| `tol` | Tolerance. |
 
 # hover at definition of f
 hover: Definition f range=137..138 source=Static
+  | _f {calls.R}_
+  | 
+  | ## Compute things
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | f(x, na.rm = FALSE, names = NULL, ..., tol = 1e-8)
   | ```
   | 
-  | **Compute things**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `x`: The x.
-  | - `na.rm`: Remove NAs.
-  | - `names`: Names.
-  | - `...`: Extra.
-  | - `tol`: Tolerance.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | The x. |
+  | | `na.rm` | Remove NAs. |
+  | | `names` | Names. |
+  | | `...` | Extra. |
+  | | `tol` | Tolerance. |
 
 # 10:5  f(1, ¦)
 hover: none

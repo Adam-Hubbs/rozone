@@ -6,52 +6,78 @@ expression: "common :: report(\"unicode.R\")"
 uni 125..128 title=Some("Ünïcode 🎉 title")
 
 # documentation(uni)
-# Ünïcode 🎉 title
+_uni {unicode.R}_
 
-`uni` is defined in `unicode.R`.
+## Ünïcode 🎉 title
+
+------
+
+### Description
+
+Descripción con 中文 and emoji 😀.
+
+### Usage
 
 ```r
 uni(é, x = "😀 中", ...)
 ```
 
-## Description
+### Arguments
 
-Descripción con 中文 and emoji 😀.
-
-## Arguments
-
-- `é`: Accent param.
-- `x`: 😀 param.
+|     |     |
+| --- | --- |
+| `é` | Accent param. |
+| `x` | 😀 param. |
 
 # hover at definition of uni
 hover: Definition uni range=125..128 source=Static
+  | _uni {unicode.R}_
+  | 
+  | ## Ünïcode 🎉 title
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Descripción con 中文 and emoji 😀.
+  | 
+  | ### Usage
+  | 
   | ```r
   | uni(é, x = "😀 中", ...)
   | ```
   | 
-  | **Ünïcode 🎉 title**
+  | ### Arguments
   | 
-  | Descripción con 中文 and emoji 😀.
-  | 
-  | **Parameters**
-  | 
-  | - `é`: Accent param.
-  | - `x`: 😀 param.
+  | |     |     |
+  | | --- | --- |
+  | | `é` | Accent param. |
+  | | `x` | 😀 param. |
 
 # 10:16  s <- "😀 中文"; un¦i(1)
 hover: Call uni range=181..184 source=Static
+  | _uni {unicode.R}_
+  | 
+  | ## Ünïcode 🎉 title
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Descripción con 中文 and emoji 😀.
+  | 
+  | ### Usage
+  | 
   | ```r
   | uni(é, x = "😀 中", ...)
   | ```
   | 
-  | **Ünïcode 🎉 title**
+  | ### Arguments
   | 
-  | Descripción con 中文 and emoji 😀.
-  | 
-  | **Parameters**
-  | 
-  | - `é`: Accent param.
-  | - `x`: 😀 param.
+  | |     |     |
+  | | --- | --- |
+  | | `é` | Accent param. |
+  | | `x` | 😀 param. |
 signature: none
 
 # 11:9  # 😀 uni(¦)

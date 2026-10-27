@@ -172,39 +172,49 @@ fn is_topic_reference(inner: &str) -> bool {
     }
 }
 
-/// Keep continuation lines inside a list item.
-fn indent_continuation(text: &str) -> String {
-    let mut lines = text.lines();
-    let first = lines.next().unwrap_or_default();
-    let rest: Vec<&str> = lines.collect();
-    let margin = rest
-        .iter()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| l.len() - l.trim_start().len())
-        .min()
-        .unwrap_or(0);
-    let mut out = first.to_string();
-    for line in rest {
-        out.push('\n');
-        if !line.trim().is_empty() {
-            out.push_str("  ");
-            out.push_str(&line[margin..]);
+/// One table row per argument. Like Rd, adjacent arguments that share a
+/// description (`@param x,y`) share a row.
+fn argument_table(params: &[(String, String)]) -> String {
+    let mut rows: Vec<(Vec<&str>, &str)> = Vec::new();
+    for (name, text) in params {
+        match rows.last_mut() {
+            Some((names, shared)) if *shared == text.as_str() => names.push(name),
+            _ => rows.push((vec![name], text)),
         }
     }
-    out
+    let mut table = String::from("|     |     |\n| --- | --- |");
+    for (names, text) in rows {
+        let names = names
+            .iter()
+            .map(|n| format!("`{n}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        table.push_str(&format!(
+            "\n| {} | {} |",
+            table_cell(&names),
+            table_cell(&convert_links(text))
+        ));
+    }
+    table
 }
 
-fn bullet_list(params: &[(String, String)]) -> String {
-    params
-        .iter()
-        .map(|(name, text)| format!("- `{name}`: {}", indent_continuation(&convert_links(text))))
+/// Table cells are a single line, and `|` would end the cell.
+fn table_cell(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
-        .join("\n")
+        .join(" ")
+        .replace('|', "\\|")
+}
+
+fn code_block(code: &str) -> String {
+    format!("```r\n{code}\n```")
 }
 
 fn push_section(out: &mut Vec<String>, heading: &str, body: Option<&str>) {
     if let Some(body) = body.filter(|b| !b.trim().is_empty()) {
-        out.push(format!("**{heading}**\n\n{}", convert_links(body)));
+        out.push(format!("### {heading}\n\n{}", convert_links(body)));
     }
 }
 
@@ -229,61 +239,24 @@ pub fn param_doc(doc: &Resolved, name: &str) -> String {
         .unwrap_or_default()
 }
 
-pub fn hover(signature: &str, doc: &Resolved) -> String {
-    let mut parts = vec![format!("```r\n{signature}\n```")];
-    let head = summary(doc);
-    if !head.is_empty() {
-        parts.push(head);
+/// The help page shown on hover and in the documentation preview, laid out
+/// like Ark's rendering of an R help page so script and package docs match.
+pub fn help_page(name: &str, file_label: &str, signature: &str, doc: &Resolved) -> String {
+    let mut parts = vec![format!("_{name} {{{file_label}}}_")];
+    if let Some(title) = &doc.title {
+        parts.push(format!("## {}", convert_links(title)));
     }
-    if !doc.params.is_empty() {
-        parts.push(format!("**Parameters**\n\n{}", bullet_list(&doc.params)));
-    }
-    push_section(&mut parts, "Returns", doc.returns.as_deref());
-    for section in &doc.sections {
-        push_section(&mut parts, &section.0, Some(&section.1));
-    }
-    parts.extend(doc.notes.iter().map(|note| format!("*{note}*")));
-    parts.join("\n\n")
-}
-
-fn push_page_section(out: &mut Vec<String>, heading: &str, body: Option<&str>) {
-    if let Some(body) = body.filter(|b| !b.trim().is_empty()) {
-        out.push(format!("## {heading}\n\n{}", convert_links(body)));
-    }
-}
-
-pub fn page(name: &str, file_label: &str, signature: &str, doc: &Resolved) -> String {
-    let heading = doc
-        .title
-        .as_deref()
-        .map_or_else(|| name.to_string(), convert_links);
-    let mut parts = vec![
-        format!("# {heading}"),
-        format!("`{name}` is defined in `{file_label}`."),
-    ];
+    parts.push("------".to_string());
     parts.extend(doc.related.iter().cloned());
-    parts.push(format!("```r\n{signature}\n```"));
-    push_page_section(&mut parts, "Description", doc.description.as_deref());
+    push_section(&mut parts, "Description", doc.description.as_deref());
+    parts.push(format!("### Usage\n\n{}", code_block(signature)));
     if !doc.params.is_empty() {
-        parts.push(format!("## Arguments\n\n{}", bullet_list(&doc.params)));
+        parts.push(format!("### Arguments\n\n{}", argument_table(&doc.params)));
     }
-    push_page_section(&mut parts, "Details", doc.details.as_deref());
-    push_page_section(&mut parts, "Returns", doc.returns.as_deref());
+    push_section(&mut parts, "Details", doc.details.as_deref());
+    push_section(&mut parts, "Value", doc.returns.as_deref());
     for (title, text) in &doc.sections {
-        push_page_section(&mut parts, title, Some(text));
-    }
-    if doc.examples.is_some() || !doc.example_files.is_empty() {
-        let mut body = String::new();
-        if let Some(examples) = &doc.examples {
-            body.push_str(&format!("```r\n{examples}\n```"));
-        }
-        for file in &doc.example_files {
-            if !body.is_empty() {
-                body.push_str("\n\n");
-            }
-            body.push_str(&format!("See `{file}`."));
-        }
-        parts.push(format!("## Examples\n\n{body}"));
+        push_section(&mut parts, title, Some(text));
     }
     let mut see_also = String::new();
     if let Some(text) = &doc.seealso {
@@ -295,10 +268,18 @@ pub fn page(name: &str, file_label: &str, signature: &str, doc: &Resolved) -> St
         }
         see_also.push_str(&format!("Family: {family}"));
     }
-    if !see_also.is_empty() {
-        parts.push(format!("## See also\n\n{see_also}"));
+    push_section(&mut parts, "See Also", Some(&see_also));
+    if doc.examples.is_some() || !doc.example_files.is_empty() {
+        let mut body = Vec::new();
+        body.extend(doc.examples.as_deref().map(code_block));
+        body.extend(
+            doc.example_files
+                .iter()
+                .map(|file| format!("See `{file}`.")),
+        );
+        parts.push(format!("### Examples\n\n{}", body.join("\n\n")));
     }
-    parts.extend(doc.notes.iter().map(|note| format!("*{note}*")));
+    parts.extend(doc.notes.iter().map(|note| format!("_{note}_")));
     parts.join("\n\n")
 }
 
@@ -389,9 +370,18 @@ mod tests {
     }
 
     #[test]
-    fn continuation_lines_are_indented_into_the_item() {
-        assert_eq!(indent_continuation("a\n  b\n\n  c"), "a\n  b\n\n  c");
-        assert_eq!(indent_continuation("a\n    b\n  c"), "a\n    b\n  c");
-        assert_eq!(indent_continuation("a\nb"), "a\n  b");
+    fn argument_rows_are_single_line_and_shared_descriptions_merge() {
+        let params = vec![
+            ("x".to_string(), "Shared.".to_string()),
+            ("y".to_string(), "Shared.".to_string()),
+            (
+                "z".to_string(),
+                "Uses [fn()],\n  then `a | b`.\n\nMore.".to_string(),
+            ),
+        ];
+        assert_eq!(
+            argument_table(&params),
+            "|     |     |\n| --- | --- |\n| `x`, `y` | Shared. |\n| `z` | Uses `fn()`, then `a \\| b`. More. |"
+        );
     }
 }

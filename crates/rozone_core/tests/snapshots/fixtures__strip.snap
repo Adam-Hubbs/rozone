@@ -7,23 +7,29 @@ hostile 483..490 title=Some("Inline  code")
 unterminated 651..663 title=Some("Unterminated fence")
 
 # documentation(hostile)
-# Inline  code
+_hostile {strip.R}_
 
-`hostile` is defined in `strip.R`.
+## Inline  code
+
+------
+
+### Description
+
+Today is , really.
+
+### Usage
 
 ```r
 hostile(x)
 ```
 
-## Description
+### Arguments
 
-Today is , really.
+|     |     |
+| --- | --- |
+| `x` | Documented  here. |
 
-## Arguments
-
-- `x`: Documented  here.
-
-## Details
+### Details
 
 After the fence.
 
@@ -31,32 +37,54 @@ After the fence.
 kept <- "plain r fence"
 ```
 
-## Returns
+### Value
 
 Kept.
 
 # hover at definition of hostile
 hover: Definition hostile range=483..490 source=Static
+  | _hostile {strip.R}_
+  | 
+  | ## Inline  code
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Today is , really.
+  | 
+  | ### Usage
+  | 
   | ```r
   | hostile(x)
   | ```
   | 
-  | **Inline  code**
+  | ### Arguments
   | 
-  | Today is , really.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Documented  here. |
   | 
-  | **Parameters**
+  | ### Details
   | 
-  | - `x`: Documented  here.
+  | After the fence.
   | 
-  | **Returns**
+  | ```r
+  | kept <- "plain r fence"
+  | ```
+  | 
+  | ### Value
   | 
   | Kept.
 
 # documentation(unterminated)
-# Unterminated fence
+_unterminated {strip.R}_
 
-`unterminated` is defined in `strip.R`.
+## Unterminated fence
+
+------
+
+### Usage
 
 ```r
 unterminated(a)
@@ -64,8 +92,14 @@ unterminated(a)
 
 # hover at definition of unterminated
 hover: Definition unterminated range=651..663 source=Static
+  | _unterminated {strip.R}_
+  | 
+  | ## Unterminated fence
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | unterminated(a)
   | ```
-  | 
-  | **Unterminated fence**

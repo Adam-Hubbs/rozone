@@ -17,148 +17,222 @@ pkg_inherit 1009..1020 title=None
 unknown_source 1081..1095 title=None
 
 # documentation(base_fn)
-# Base function
+_base_fn {inherit.R}_
 
-`base_fn` is defined in `inherit.R`.
+## Base function
+
+------
+
+### Usage
 
 ```r
 base_fn(data, n)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: The data.
-- `n`: Number of rows.
+|     |     |
+| --- | --- |
+| `data` | The data. |
+| `n` | Number of rows. |
 
 # hover at definition of base_fn
 hover: Definition base_fn range=73..80 source=Static
+  | _base_fn {inherit.R}_
+  | 
+  | ## Base function
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | base_fn(data, n)
   | ```
   | 
-  | **Base function**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: The data.
-  | - `n`: Number of rows.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | The data. |
+  | | `n` | Number of rows. |
 
 # documentation(middle)
-# Middle
+_middle {inherit.R}_
 
-`middle` is defined in `inherit.R`.
+## Middle
+
+------
+
+### Usage
 
 ```r
 middle(data, n, extra)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: The data.
-- `n`: Number of rows.
-- `extra`: Extra.
+|     |     |
+| --- | --- |
+| `data` | The data. |
+| `n` | Number of rows. |
+| `extra` | Extra. |
 
 # hover at definition of middle
 hover: Definition middle range=167..173 source=Static
+  | _middle {inherit.R}_
+  | 
+  | ## Middle
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | middle(data, n, extra)
   | ```
   | 
-  | **Middle**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: The data.
-  | - `n`: Number of rows.
-  | - `extra`: Extra.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | The data. |
+  | | `n` | Number of rows. |
+  | | `extra` | Extra. |
 
 # documentation(top)
-# Top
+_top {inherit.R}_
 
-`top` is defined in `inherit.R`.
+## Top
+
+------
+
+### Usage
 
 ```r
 top(data, extra, n, other)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: The data.
-- `extra`: Extra.
-- `n`: Number of rows.
+|     |     |
+| --- | --- |
+| `data` | The data. |
+| `extra` | Extra. |
+| `n` | Number of rows. |
 
 # hover at definition of top
 hover: Definition top range=240..243 source=Static
+  | _top {inherit.R}_
+  | 
+  | ## Top
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | top(data, extra, n, other)
   | ```
   | 
-  | **Top**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: The data.
-  | - `extra`: Extra.
-  | - `n`: Number of rows.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | The data. |
+  | | `extra` | Extra. |
+  | | `n` | Number of rows. |
 
 # documentation(cycle_a)
-# Cycle A
+_cycle_a {inherit.R}_
 
-`cycle_a` is defined in `inherit.R`.
+## Cycle A
+
+------
+
+### Usage
 
 ```r
 cycle_a(a_own, shared)
 ```
 
-## Arguments
+### Arguments
 
-- `a_own`: Own.
-- `shared`: Shared doc.
+|     |     |
+| --- | --- |
+| `a_own` | Own. |
+| `shared` | Shared doc. |
 
 # hover at definition of cycle_a
 hover: Definition cycle_a range=343..350 source=Static
+  | _cycle_a {inherit.R}_
+  | 
+  | ## Cycle A
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | cycle_a(a_own, shared)
   | ```
   | 
-  | **Cycle A**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `a_own`: Own.
-  | - `shared`: Shared doc.
+  | |     |     |
+  | | --- | --- |
+  | | `a_own` | Own. |
+  | | `shared` | Shared doc. |
 
 # documentation(cycle_b)
-# Cycle B
+_cycle_b {inherit.R}_
 
-`cycle_b` is defined in `inherit.R`.
+## Cycle B
+
+------
+
+### Usage
 
 ```r
 cycle_b(shared, a_own)
 ```
 
-## Arguments
+### Arguments
 
-- `shared`: Shared doc.
-- `a_own`: Own.
+|     |     |
+| --- | --- |
+| `shared` | Shared doc. |
+| `a_own` | Own. |
 
 # hover at definition of cycle_b
 hover: Definition cycle_b range=450..457 source=Static
+  | _cycle_b {inherit.R}_
+  | 
+  | ## Cycle B
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | cycle_b(shared, a_own)
   | ```
   | 
-  | **Cycle B**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `shared`: Shared doc.
-  | - `a_own`: Own.
+  | |     |     |
+  | | --- | --- |
+  | | `shared` | Shared doc. |
+  | | `a_own` | Own. |
 
 # documentation(self_ref)
-# Self
+_self_ref {inherit.R}_
 
-`self_ref` is defined in `inherit.R`.
+## Self
+
+------
+
+### Usage
 
 ```r
 self_ref(x)
@@ -166,173 +240,257 @@ self_ref(x)
 
 # hover at definition of self_ref
 hover: Definition self_ref range=526..534 source=Static
+  | _self_ref {inherit.R}_
+  | 
+  | ## Self
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | self_ref(x)
   | ```
-  | 
-  | **Self**
 
 # documentation(from_pkg)
-# From dplyr
+_from_pkg {inherit.R}_
 
-`from_pkg` is defined in `inherit.R`.
+## From dplyr
+
+------
+
+### Usage
 
 ```r
 from_pkg(.data, ..., .by = NULL, data)
 ```
 
-## Arguments
+### Arguments
 
-- `.data`: Mine.
-- `...`: Inherited from `dplyr::mutate`.
-- `.by`: Inherited from `dplyr::mutate`.
-- `data`: The data.
+|     |     |
+| --- | --- |
+| `.data` | Mine. |
+| `...`, `.by` | Inherited from `dplyr::mutate`. |
+| `data` | The data. |
 
 # hover at definition of from_pkg
 hover: Definition from_pkg range=650..658 source=Static
+  | _from_pkg {inherit.R}_
+  | 
+  | ## From dplyr
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | from_pkg(.data, ..., .by = NULL, data)
   | ```
   | 
-  | **From dplyr**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `.data`: Mine.
-  | - `...`: Inherited from `dplyr::mutate`.
-  | - `.by`: Inherited from `dplyr::mutate`.
-  | - `data`: The data.
+  | |     |     |
+  | | --- | --- |
+  | | `.data` | Mine. |
+  | | `...`, `.by` | Inherited from `dplyr::mutate`. |
+  | | `data` | The data. |
 
 # documentation(inherit_all)
-# Inherit all
+_inherit_all {inherit.R}_
 
-`inherit_all` is defined in `inherit.R`.
+## Inherit all
+
+------
+
+### Usage
 
 ```r
 inherit_all(data, n)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: The data.
-- `n`: Number of rows.
+|     |     |
+| --- | --- |
+| `data` | The data. |
+| `n` | Number of rows. |
 
 # hover at definition of inherit_all
 hover: Definition inherit_all range=742..753 source=Static
+  | _inherit_all {inherit.R}_
+  | 
+  | ## Inherit all
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | inherit_all(data, n)
   | ```
   | 
-  | **Inherit all**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: The data.
-  | - `n`: Number of rows.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | The data. |
+  | | `n` | Number of rows. |
 
 # documentation(inherit_some)
-# Inherit some
+_inherit_some {inherit.R}_
 
-`inherit_some` is defined in `inherit.R`.
+## Inherit some
+
+------
+
+### Usage
 
 ```r
 inherit_some(data)
 ```
 
-## Arguments
+### Arguments
 
-- `data`: The data.
+|     |     |
+| --- | --- |
+| `data` | The data. |
 
 # hover at definition of inherit_some
 hover: Definition inherit_some range=849..861 source=Static
+  | _inherit_some {inherit.R}_
+  | 
+  | ## Inherit some
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | inherit_some(data)
   | ```
   | 
-  | **Inherit some**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `data`: The data.
+  | |     |     |
+  | | --- | --- |
+  | | `data` | The data. |
 
 # documentation(dots_fn)
-# Dots
+_dots_fn {inherit.R}_
 
-`dots_fn` is defined in `inherit.R`.
+## Dots
+
+------
+
+### Usage
 
 ```r
 dots_fn(...)
 ```
 
-## Arguments
+### Arguments
 
-- `...`: Arguments passed on to `base_fn`.
+|     |     |
+| --- | --- |
+| `...` | Arguments passed on to `base_fn`. |
 
-*Also inherits sections from `base_fn`.*
+_Also inherits sections from `base_fn`._
 
 # hover at definition of dots_fn
 hover: Definition dots_fn range=956..963 source=Static
+  | _dots_fn {inherit.R}_
+  | 
+  | ## Dots
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | dots_fn(...)
   | ```
   | 
-  | **Dots**
+  | ### Arguments
   | 
-  | **Parameters**
+  | |     |     |
+  | | --- | --- |
+  | | `...` | Arguments passed on to `base_fn`. |
   | 
-  | - `...`: Arguments passed on to `base_fn`.
-  | 
-  | *Also inherits sections from `base_fn`.*
+  | _Also inherits sections from `base_fn`._
 
 # documentation(pkg_inherit)
-# pkg_inherit
+_pkg_inherit {inherit.R}_
 
-`pkg_inherit` is defined in `inherit.R`.
+------
+
+### Usage
 
 ```r
 pkg_inherit(x)
 ```
 
-## Arguments
+### Arguments
 
-- `x`: Inherited from `stats::sd`.
+|     |     |
+| --- | --- |
+| `x` | Inherited from `stats::sd`. |
 
-*Inherits documentation from `stats::sd`.*
+_Inherits documentation from `stats::sd`._
 
 # hover at definition of pkg_inherit
 hover: Definition pkg_inherit range=1009..1020 source=Static
+  | _pkg_inherit {inherit.R}_
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | pkg_inherit(x)
   | ```
   | 
-  | **Parameters**
+  | ### Arguments
   | 
-  | - `x`: Inherited from `stats::sd`.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Inherited from `stats::sd`. |
   | 
-  | *Inherits documentation from `stats::sd`.*
+  | _Inherits documentation from `stats::sd`._
 
 # documentation(unknown_source)
-# unknown_source
+_unknown_source {inherit.R}_
 
-`unknown_source` is defined in `inherit.R`.
+------
+
+### Usage
 
 ```r
 unknown_source(x)
 ```
 
-## Arguments
+### Arguments
 
-- `x`: Inherited from `not_defined_anywhere`.
+|     |     |
+| --- | --- |
+| `x` | Inherited from `not_defined_anywhere`. |
 
 # hover at definition of unknown_source
 hover: Definition unknown_source range=1081..1095 source=Static
+  | _unknown_source {inherit.R}_
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | unknown_source(x)
   | ```
   | 
-  | **Parameters**
+  | ### Arguments
   | 
-  | - `x`: Inherited from `not_defined_anywhere`.
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Inherited from `not_defined_anywhere`. |
 
 # 56:4  top(¦)
 hover: none

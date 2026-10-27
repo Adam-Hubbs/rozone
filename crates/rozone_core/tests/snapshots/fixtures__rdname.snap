@@ -10,199 +10,275 @@ one 307..310 title=Some("Standalone page")
 two 374..377 title=Some("Standalone page")
 
 # documentation(add)
-# Math helpers
+_add {rdname.R}_
 
-`add` is defined in `rdname.R`.
+## Math helpers
+
+------
 
 *Shares its help page with `add3()`, `sub()`.*
+
+### Description
+
+Helpers for doing math.
+
+### Usage
 
 ```r
 add(x, y)
 ```
 
-## Description
+### Arguments
 
-Helpers for doing math.
+|     |     |
+| --- | --- |
+| `x` | A number. |
+| `y` | Another number. |
 
-## Arguments
-
-- `x`: A number.
-- `y`: Another number.
-
-## Returns
+### Value
 
 A number.
 
 # hover at definition of add
 hover: Definition add range=121..124 source=Static
+  | _add {rdname.R}_
+  | 
+  | ## Math helpers
+  | 
+  | ------
+  | 
+  | *Shares its help page with `add3()`, `sub()`.*
+  | 
+  | ### Description
+  | 
+  | Helpers for doing math.
+  | 
+  | ### Usage
+  | 
   | ```r
   | add(x, y)
   | ```
   | 
-  | **Math helpers**
+  | ### Arguments
   | 
-  | *Shares its help page with `add3()`, `sub()`.*
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A number. |
+  | | `y` | Another number. |
   | 
-  | Helpers for doing math.
-  | 
-  | **Parameters**
-  | 
-  | - `x`: A number.
-  | - `y`: Another number.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A number.
 
 # documentation(add3)
-# Math helpers
+_add3 {rdname.R}_
 
-`add3` is defined in `rdname.R`.
+## Math helpers
+
+------
 
 *Shares its help page with `add()`, `sub()`.*
+
+### Description
+
+Helpers for doing math.
+
+### Usage
 
 ```r
 add3(x, y, z)
 ```
 
-## Description
+### Arguments
 
-Helpers for doing math.
+|     |     |
+| --- | --- |
+| `x` | A number. |
+| `y` | Another number. |
+| `z` | Third. |
 
-## Arguments
-
-- `x`: A number.
-- `y`: Another number.
-- `z`: Third.
-
-## Returns
+### Value
 
 A number.
 
 # hover at definition of add3
 hover: Definition add3 range=184..188 source=Static
+  | _add3 {rdname.R}_
+  | 
+  | ## Math helpers
+  | 
+  | ------
+  | 
+  | *Shares its help page with `add()`, `sub()`.*
+  | 
+  | ### Description
+  | 
+  | Helpers for doing math.
+  | 
+  | ### Usage
+  | 
   | ```r
   | add3(x, y, z)
   | ```
   | 
-  | **Math helpers**
+  | ### Arguments
   | 
-  | *Shares its help page with `add()`, `sub()`.*
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A number. |
+  | | `y` | Another number. |
+  | | `z` | Third. |
   | 
-  | Helpers for doing math.
-  | 
-  | **Parameters**
-  | 
-  | - `x`: A number.
-  | - `y`: Another number.
-  | - `z`: Third.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A number.
 
 # documentation(sub)
-# Math helpers
+_sub {rdname.R}_
 
-`sub` is defined in `rdname.R`.
+## Math helpers
+
+------
 
 *Shares its help page with `add()`, `add3()`.*
+
+### Description
+
+Helpers for doing math.
+
+### Usage
 
 ```r
 sub(x, y)
 ```
 
-## Description
+### Arguments
 
-Helpers for doing math.
+|     |     |
+| --- | --- |
+| `x` | A number. |
+| `y` | Another number. |
 
-## Arguments
-
-- `x`: A number.
-- `y`: Another number.
-
-## Returns
+### Value
 
 A number.
 
 # hover at definition of sub
 hover: Definition sub range=236..239 source=Static
+  | _sub {rdname.R}_
+  | 
+  | ## Math helpers
+  | 
+  | ------
+  | 
+  | *Shares its help page with `add()`, `add3()`.*
+  | 
+  | ### Description
+  | 
+  | Helpers for doing math.
+  | 
+  | ### Usage
+  | 
   | ```r
   | sub(x, y)
   | ```
   | 
-  | **Math helpers**
+  | ### Arguments
   | 
-  | *Shares its help page with `add()`, `add3()`.*
+  | |     |     |
+  | | --- | --- |
+  | | `x` | A number. |
+  | | `y` | Another number. |
   | 
-  | Helpers for doing math.
-  | 
-  | **Parameters**
-  | 
-  | - `x`: A number.
-  | - `y`: Another number.
-  | 
-  | **Returns**
+  | ### Value
   | 
   | A number.
 
 # documentation(one)
-# Standalone page
+_one {rdname.R}_
 
-`one` is defined in `rdname.R`.
+## Standalone page
+
+------
 
 *Shares its help page with `two()`.*
+
+### Usage
 
 ```r
 one(a)
 ```
 
-## Arguments
+### Arguments
 
-- `a`: The a.
+|     |     |
+| --- | --- |
+| `a` | The a. |
 
 # hover at definition of one
 hover: Definition one range=307..310 source=Static
+  | _one {rdname.R}_
+  | 
+  | ## Standalone page
+  | 
+  | ------
+  | 
+  | *Shares its help page with `two()`.*
+  | 
+  | ### Usage
+  | 
   | ```r
   | one(a)
   | ```
   | 
-  | **Standalone page**
+  | ### Arguments
   | 
-  | *Shares its help page with `two()`.*
-  | 
-  | **Parameters**
-  | 
-  | - `a`: The a.
+  | |     |     |
+  | | --- | --- |
+  | | `a` | The a. |
 
 # documentation(two)
-# Standalone page
+_two {rdname.R}_
 
-`two` is defined in `rdname.R`.
+## Standalone page
+
+------
 
 *Shares its help page with `one()`.*
+
+### Usage
 
 ```r
 two(a)
 ```
 
-## Arguments
+### Arguments
 
-- `a`: The a.
+|     |     |
+| --- | --- |
+| `a` | The a. |
 
 # hover at definition of two
 hover: Definition two range=374..377 source=Static
+  | _two {rdname.R}_
+  | 
+  | ## Standalone page
+  | 
+  | ------
+  | 
+  | *Shares its help page with `one()`.*
+  | 
+  | ### Usage
+  | 
   | ```r
   | two(a)
   | ```
   | 
-  | **Standalone page**
+  | ### Arguments
   | 
-  | *Shares its help page with `one()`.*
-  | 
-  | **Parameters**
-  | 
-  | - `a`: The a.
+  | |     |     |
+  | | --- | --- |
+  | | `a` | The a. |
 
 # 25:11  add3(1, 2, ¦)
 hover: none

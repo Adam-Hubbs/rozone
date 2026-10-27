@@ -8,9 +8,13 @@ second_wins 314..325 title=Some("Second block wins")
 with_params 377..388 title=Some("With params")
 
 # documentation(plain_before)
-# Doc after comment
+_plain_before {blocks.R}_
 
-`plain_before` is defined in `blocks.R`.
+## Doc after comment
+
+------
+
+### Usage
 
 ```r
 plain_before(a)
@@ -18,16 +22,26 @@ plain_before(a)
 
 # hover at definition of plain_before
 hover: Definition plain_before range=171..183 source=Static
+  | _plain_before {blocks.R}_
+  | 
+  | ## Doc after comment
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | plain_before(a)
   | ```
-  | 
-  | **Doc after comment**
 
 # documentation(second_wins)
-# Second block wins
+_second_wins {blocks.R}_
 
-`second_wins` is defined in `blocks.R`.
+## Second block wins
+
+------
+
+### Usage
 
 ```r
 second_wins(a)
@@ -35,33 +49,53 @@ second_wins(a)
 
 # hover at definition of second_wins
 hover: Definition second_wins range=314..325 source=Static
+  | _second_wins {blocks.R}_
+  | 
+  | ## Second block wins
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | second_wins(a)
   | ```
-  | 
-  | **Second block wins**
 
 # documentation(with_params)
-# With params
+_with_params {blocks.R}_
 
-`with_params` is defined in `blocks.R`.
+## With params
+
+------
+
+### Usage
 
 ```r
 with_params(a)
 ```
 
-## Arguments
+### Arguments
 
-- `a`: A.
+|     |     |
+| --- | --- |
+| `a` | A. |
 
 # hover at definition of with_params
 hover: Definition with_params range=377..388 source=Static
+  | _with_params {blocks.R}_
+  | 
+  | ## With params
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | with_params(a)
   | ```
   | 
-  | **With params**
+  | ### Arguments
   | 
-  | **Parameters**
-  | 
-  | - `a`: A.
+  | |     |     |
+  | | --- | --- |
+  | | `a` | A. |

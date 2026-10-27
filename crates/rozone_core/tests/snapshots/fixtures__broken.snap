@@ -8,9 +8,13 @@ mid 64..67 title=Some("Mid")
 after 108..113 title=Some("After")
 
 # documentation(before)
-# Before
+_before {broken.R}_
 
-`before` is defined in `broken.R`.
+## Before
+
+------
+
+### Usage
 
 ```r
 before(a)
@@ -18,16 +22,26 @@ before(a)
 
 # hover at definition of before
 hover: Definition before range=10..16 source=Static
+  | _before {broken.R}_
+  | 
+  | ## Before
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | before(a)
   | ```
-  | 
-  | **Before**
 
 # documentation(mid)
-# Mid
+_mid {broken.R}_
 
-`mid` is defined in `broken.R`.
+## Mid
+
+------
+
+### Usage
 
 ```r
 mid(b)
@@ -35,16 +49,26 @@ mid(b)
 
 # hover at definition of mid
 hover: Definition mid range=64..67 source=Static
+  | _mid {broken.R}_
+  | 
+  | ## Mid
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | mid(b)
   | ```
-  | 
-  | **Mid**
 
 # documentation(after)
-# After
+_after {broken.R}_
 
-`after` is defined in `broken.R`.
+## After
+
+------
+
+### Usage
 
 ```r
 after(c)
@@ -52,11 +76,17 @@ after(c)
 
 # hover at definition of after
 hover: Definition after range=108..113 source=Static
+  | _after {broken.R}_
+  | 
+  | ## After
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
   | ```r
   | after(c)
   | ```
-  | 
-  | **After**
 
 # 20:7  before(¦)
 hover: none

@@ -6,42 +6,54 @@ expression: "common :: report(\"links.R\")"
 links 542..547 title=Some("Link tester")
 
 # documentation(links)
-# Link tester
+_links {links.R}_
 
-`links` is defined in `links.R`.
+## Link tester
+
+------
+
+### Description
+
+See `wmean()`, `stats::sd()`, `dplyr::mutate`, the docs and
+`code`. A real [link](https://example.com) stays. `[x]` stays in code.
+
+### Usage
 
 ```r
 links(x)
 ```
 
-## Description
+### Arguments
 
-See `wmean()`, `stats::sd()`, `dplyr::mutate`, the docs and
-`code`. A real [link](https://example.com) stays. `[x]` stays in code.
+|     |     |
+| --- | --- |
+| `x` | Uses `stats::sd()`. |
 
-## Arguments
-
-- `x`: Uses `stats::sd()`.
-
-## Details
+### Details
 
 Details with `fn` link and x[i] indexing.
 
-## Returns
+### Value
 
 A `list()`.
 
-## Warnings
+### Warnings
 
 Be careful with `wmean()`.
 
 Second paragraph.
 
-## Other notes
+### Other notes
 
 Inline body.
 
-## Examples
+### See Also
+
+`wmean()`, `pkg::fn()`
+
+Family: helpers
+
+### Examples
 
 ```r
 f(1)
@@ -52,40 +64,65 @@ if (TRUE) {
 
 See `inst/examples/f.R`.
 
-## See also
-
-`wmean()`, `pkg::fn()`
-
-Family: helpers
-
 # hover at definition of links
 hover: Definition links range=542..547 source=Static
-  | ```r
-  | links(x)
-  | ```
+  | _links {links.R}_
   | 
-  | **Link tester**
+  | ## Link tester
+  | 
+  | ------
+  | 
+  | ### Description
   | 
   | See `wmean()`, `stats::sd()`, `dplyr::mutate`, the docs and
   | `code`. A real [link](https://example.com) stays. `[x]` stays in code.
   | 
-  | **Parameters**
+  | ### Usage
   | 
-  | - `x`: Uses `stats::sd()`.
+  | ```r
+  | links(x)
+  | ```
   | 
-  | **Returns**
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Uses `stats::sd()`. |
+  | 
+  | ### Details
+  | 
+  | Details with `fn` link and x[i] indexing.
+  | 
+  | ### Value
   | 
   | A `list()`.
   | 
-  | **Warnings**
+  | ### Warnings
   | 
   | Be careful with `wmean()`.
   | 
   | Second paragraph.
   | 
-  | **Other notes**
+  | ### Other notes
   | 
   | Inline body.
+  | 
+  | ### See Also
+  | 
+  | `wmean()`, `pkg::fn()`
+  | 
+  | Family: helpers
+  | 
+  | ### Examples
+  | 
+  | ```r
+  | f(1)
+  | if (TRUE) {
+  |   f(2)
+  | }
+  | ```
+  | 
+  | See `inst/examples/f.R`.
 
 # 26:6  links(¦)
 hover: none
