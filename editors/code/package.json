@@ -5,6 +5,11 @@
   "version": "0.2.0",
   "publisher": "rozone",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Adam-Hubbs/rozone.git",
+    "directory": "editors/code"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
