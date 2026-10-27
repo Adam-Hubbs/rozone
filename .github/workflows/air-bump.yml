@@ -62,7 +62,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Open pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: bot/bump-air
           delete-branch: true
