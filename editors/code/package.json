@@ -2,7 +2,7 @@
   "name": "rozone",
   "displayName": "rozone: roxygen docs for R scripts",
   "description": "Hover docs and signature help from roxygen comments in plain R scripts.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "rozone",
   "license": "MIT",
   "engines": {
