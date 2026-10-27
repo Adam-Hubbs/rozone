@@ -8,15 +8,15 @@ import { findOnPath } from "../../../src/enhanced/rDiscovery.ts";
 import { SidecarClient } from "../../../src/enhanced/sidecarClient.ts";
 
 const sidecarScript = fileURLToPath(new URL("../../../r/sidecar.R", import.meta.url));
-const exampleScript = fileURLToPath(new URL("../../../../../spike/example_script.R", import.meta.url));
+const exampleScript = fileURLToPath(new URL("../../fixtures/workspace/example_script.R", import.meta.url));
 const rscript = findOnPath(process.env["PATH"], process.platform, existsSync);
 
 const skip = !rscript
   ? "Rscript not found"
   : !existsSync(sidecarScript)
-    ? "editors/code/r/sidecar.R does not exist yet"
+    ? "editors/code/r/sidecar.R is missing"
     : !existsSync(exampleScript)
-      ? "spike/example_script.R missing"
+      ? "test/fixtures/workspace/example_script.R missing"
       : false;
 
 // FNV-1a 64-bit over UTF-8, per docs/contracts.md section 0.

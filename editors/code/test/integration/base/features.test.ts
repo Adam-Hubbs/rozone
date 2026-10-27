@@ -40,6 +40,13 @@ suite("hover", () => {
     assert.match(hoverText(hovers), /weighted mean/i);
   });
 
+  test("a call-site hover shows the title and the argument docs", async () => {
+    const doc = await openFixture("example_script.R");
+    const text = hoverText(await hoversAt(doc, positionOf(doc, "wmean({{", 2)));
+    assert.match(text, /Weighted mean of a column/);
+    assert.match(text, /Weights, the same length as `x`\./);
+  });
+
   test("the hover range covers exactly the identifier", async () => {
     const doc = await openFixture("example_script.R");
     const hovers = await hoversAt(doc, positionOf(doc, "wmean({{", 2));
@@ -305,7 +312,8 @@ suite("open documentation", () => {
     const uri = (await vscode.commands.executeCommand("rozone.openDocumentation", "wmean")) as vscode.Uri | undefined;
     assert.equal(uri?.scheme, "rozone-doc");
     const doc = await vscode.workspace.openTextDocument(uri as vscode.Uri);
-    assert.match(doc.getText(), /wmean/);
+    assert.match(doc.getText(), /Weighted mean of a column/);
+    assert.match(doc.getText(), /Weights, the same length as `x`\./);
     await waitFor("a markdown preview tab", () =>
       vscode.window.tabGroups.all
         .flatMap((group) => group.tabs)

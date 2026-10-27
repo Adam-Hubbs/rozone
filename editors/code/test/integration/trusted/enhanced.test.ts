@@ -18,7 +18,7 @@ import {
   waitForInitialIndex,
 } from "../support.ts";
 
-// PLAN section 6: trusted workspace, real Rscript and r/sidecar.R, no fakes.
+// Trusted workspace with the real Rscript and r/sidecar.R, no fakes.
 
 function findRscript(): string | undefined {
   const exe = process.platform === "win32" ? "Rscript.exe" : "Rscript";
@@ -42,7 +42,7 @@ const isEnhanced = () => {
   return tier === "enhanced" || tier === "enhanced+help";
 };
 
-const hoverAtCall = async (...segments: string[]) => {
+const openWithPath = async (...segments: string[]) => {
   const file = fsPathOf(...segments);
   const doc = await openFixture(...segments);
   return { file, doc };
@@ -80,7 +80,7 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
   });
 
   test("hover eventually comes from the roxygen2 manifest", async () => {
-    const { file, doc } = await hoverAtCall("example_script.R");
+    const { file, doc } = await openWithPath("example_script.R");
     const offset = doc.offsetAt(positionOf(doc, "wmean({{", 2));
     const hover = await waitFor(
       "a manifest-sourced hover",
@@ -98,7 +98,7 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
       console.log("SKIPPED @inheritParams dplyr::mutate: dplyr is not installed");
       return this.skip();
     }
-    const { doc } = await hoverAtCall("enhanced", "dplyr_inherit.R");
+    const { doc } = await openWithPath("enhanced", "dplyr_inherit.R");
     await waitFor(
       "dplyr's .data description",
       async () => {
@@ -114,7 +114,7 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
   });
 
   test("saving an edit to a #' line updates the hover within about a second", async () => {
-    const { file, doc } = await hoverAtCall("enhanced", "live_edit.R");
+    const { file, doc } = await openWithPath("enhanced", "live_edit.R");
     const offset = doc.offsetAt(positionOf(doc, "live_edit_fn(1)", 2));
     await waitFor("initial manifest hover", async () => (await rozone._test.tier.client.hover(file, offset))?.source === "manifest", 10_000);
 
@@ -152,7 +152,7 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
       60_000,
     );
     assert.notEqual(after, before);
-    const { file, doc } = await hoverAtCall("example_script.R");
+    const { file, doc } = await openWithPath("example_script.R");
     const offset = doc.offsetAt(positionOf(doc, "wmean({{", 2));
     await waitFor("manifest hover after restart", async () => (await rozone._test.tier.client.hover(file, offset))?.source === "manifest", 15_000);
   });

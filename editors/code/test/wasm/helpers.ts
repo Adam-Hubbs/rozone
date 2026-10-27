@@ -10,7 +10,7 @@ export const wasmModulePath = fileURLToPath(new URL("../../wasm/rozone_wasm.js",
 
 export const loadRozone = (): RozoneModule => require(wasmModulePath) as RozoneModule;
 
-export const examplePath = fileURLToPath(new URL("../../../../spike/example_script.R", import.meta.url));
+export const examplePath = fileURLToPath(new URL("../fixtures/workspace/example_script.R", import.meta.url));
 
 export const exampleText = readFileSync(examplePath, "utf8");
 

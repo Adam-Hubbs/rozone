@@ -109,12 +109,6 @@ export async function signatureAt(
   );
 }
 
-export async function replaceAll(document: vscode.TextDocument, text: string): Promise<void> {
-  const edit = new vscode.WorkspaceEdit();
-  edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), text);
-  assert.ok(await vscode.workspace.applyEdit(edit), "workspace edit was rejected");
-}
-
 export async function appendText(document: vscode.TextDocument, text: string): Promise<void> {
   const edit = new vscode.WorkspaceEdit();
   edit.insert(document.uri, document.positionAt(document.getText().length), text);
@@ -132,11 +126,6 @@ export async function resetEditors(): Promise<void> {
   }
   await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   await removeScratchFiles();
-}
-
-export function percentile(values: number[], p: number): number {
-  const sorted = values.toSorted((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] as number;
 }
 
 export const fsPathOf = (...segments: string[]) => path.join(workspaceRoot().fsPath, ...segments);

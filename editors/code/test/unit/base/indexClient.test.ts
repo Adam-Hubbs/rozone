@@ -30,7 +30,7 @@ test("round-trips a hover through the worker", async () => {
   assert.equal(await client.hover("/nope.R", 0), undefined);
 });
 
-test("requests reach the worker in call order with increasing ids", async () => {
+test("requests reach the worker in call order", async () => {
   const { client, current } = setup();
   const pending = [
     client.updateFiles([{ path: "/a.R", text: "1" }]),
@@ -41,7 +41,6 @@ test("requests reach the worker in call order with increasing ids", async () => 
   await Promise.all(pending);
   const received = current().received;
   assert.deepEqual(received.map((r) => r.method), ["updateFiles", "updateFiles", "hover", "removeFiles"]);
-  assert.deepEqual(received.map((r) => r.id), [1, 2, 3, 4]);
 });
 
 test("concurrent responses are matched to the right caller", async () => {

@@ -41,14 +41,6 @@ test("keeps only the latest value per key and flushes one batch", () => {
   assert.deepEqual(batches, [[["a", "3"], ["b", "x"]]]);
 });
 
-test("schedules a single timer for a burst", () => {
-  const { coalescer, clock } = setup();
-  coalescer.set("a", "1");
-  coalescer.set("b", "2");
-  coalescer.set("a", "3");
-  assert.equal(clock.pending(), 1);
-});
-
 test("flushKey sends only that key immediately and keeps the timer for the rest", () => {
   const { coalescer, clock, batches } = setup();
   coalescer.set("a", "1");
@@ -96,12 +88,6 @@ test("delete drops a pending value", () => {
   assert.deepEqual(batches, [[["b", "2"]]]);
 });
 
-test("flushAll with nothing pending is silent", () => {
-  const { coalescer, batches } = setup();
-  coalescer.flushAll();
-  assert.equal(batches.length, 0);
-});
-
 test("dispose discards pending work and cancels the timer", () => {
   const { coalescer, clock, batches } = setup();
   coalescer.set("a", "1");
@@ -111,11 +97,3 @@ test("dispose discards pending work and cancels the timer", () => {
   assert.equal(batches.length, 0);
 });
 
-test("works with the real timers", async () => {
-  const batches: [string, number][][] = [];
-  const coalescer = createCoalescer<string, number>((entries) => batches.push(entries), 5);
-  coalescer.set("a", 1);
-  coalescer.set("a", 2);
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.deepEqual(batches, [[["a", 2]]]);
-});

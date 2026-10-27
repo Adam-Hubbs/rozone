@@ -5,8 +5,6 @@ import { examplePath, exampleText, fnv1a64, loadRozone, wmeanManifest } from "./
 
 const rozone = loadRozone();
 
-const CORE_TODO = {};
-
 const calleeOffset = (text: string): number => text.indexOf("wmean({{ col }}, w)");
 
 test("contentHash of the empty string is the FNV-1a offset basis", () => {
@@ -29,22 +27,7 @@ test("RozoneIndex constructs and frees", () => {
   index.free();
 });
 
-test("a core panic surfaces as a JS error and the module stays usable", (t) => {
-  const index = new rozone.RozoneIndex();
-  try {
-    index.updateFile(examplePath, exampleText);
-  } catch (error) {
-    assert.ok(error instanceof Error, "panic should throw a JS Error subclass");
-    assert.notEqual(error.message, "");
-    assert.equal(rozone.contentHash(""), "cbf29ce484222325", "module unusable after panic");
-    const second = new rozone.RozoneIndex();
-    assert.ok(second instanceof rozone.RozoneIndex);
-    return;
-  }
-  t.skip("update_file no longer panics; panic-surfacing check not applicable");
-});
-
-test("hover on the wmean callee returns a static call hover", CORE_TODO, () => {
+test("hover on the wmean callee returns a static call hover", () => {
   const index = new rozone.RozoneIndex();
   index.updateFile(examplePath, exampleText);
   const hover = index.hover(examplePath, calleeOffset(exampleText) + 1);
@@ -52,10 +35,11 @@ test("hover on the wmean callee returns a static call hover", CORE_TODO, () => {
   assert.equal(hover.name, "wmean");
   assert.equal(hover.kind, "call");
   assert.equal(hover.source, "static");
-  assert.match(hover.markdown, /Weighted mean/);
+  assert.match(hover.markdown, /Weighted mean of a column/);
+  assert.match(hover.markdown, /Weights, the same length as `x`\./);
 });
 
-test("signatureHelp after `{{ col }}, ` has activeParameter 1", CORE_TODO, () => {
+test("signatureHelp after `{{ col }}, ` has activeParameter 1", () => {
   const index = new rozone.RozoneIndex();
   index.updateFile(examplePath, exampleText);
   const offset = exampleText.indexOf("{{ col }}, w)") + "{{ col }}, ".length;
@@ -65,18 +49,18 @@ test("signatureHelp after `{{ col }}, ` has activeParameter 1", CORE_TODO, () =>
   assert.equal(help.activeParameter, 1);
 });
 
-test("hover on an unknown function returns undefined", CORE_TODO, () => {
+test("hover on an unknown function returns undefined", () => {
   const index = new rozone.RozoneIndex();
   index.updateFile("/tmp/unknown.R", "not_a_known_fn(1, 2)\n");
   assert.equal(index.hover("/tmp/unknown.R", 1), undefined);
 });
 
-test("loadManifest with invalid JSON throws", CORE_TODO, () => {
+test("loadManifest with invalid JSON throws", () => {
   const index = new rozone.RozoneIndex();
   assert.throws(() => index.loadManifest("{ not json"), /invalid manifest/);
 });
 
-test("loadManifest with a matching content hash switches source to manifest", CORE_TODO, () => {
+test("loadManifest with a matching content hash switches source to manifest", () => {
   const index = new rozone.RozoneIndex();
   index.updateFile(examplePath, exampleText);
   index.loadManifest(JSON.stringify(wmeanManifest(examplePath, exampleText, rozone.contentHash)));
@@ -85,7 +69,7 @@ test("loadManifest with a matching content hash switches source to manifest", CO
   assert.equal(hover.source, "manifest");
 });
 
-test("documentedFunctions lists wmean and summarise_wmean", CORE_TODO, () => {
+test("documentedFunctions lists wmean and summarise_wmean", () => {
   const index = new rozone.RozoneIndex();
   index.updateFile(examplePath, exampleText);
   const names = index.documentedFunctions().map((fn) => fn.name);
@@ -93,7 +77,7 @@ test("documentedFunctions lists wmean and summarise_wmean", CORE_TODO, () => {
   assert.ok(names.includes("summarise_wmean"), names.join(", "));
 });
 
-test("UTF-16 offsets after an emoji in a comment still resolve", CORE_TODO, () => {
+test("UTF-16 offsets after an emoji in a comment still resolve", () => {
   const text = `# 🎉 emoji comment\n${exampleText}`;
   const index = new rozone.RozoneIndex();
   index.updateFile(examplePath, text);
@@ -102,4 +86,23 @@ test("UTF-16 offsets after an emoji in a comment still resolve", CORE_TODO, () =
   assert.ok(hover);
   assert.equal(hover.name, "wmean");
   assert.deepEqual(hover.range, { start, end: start + "wmean".length });
+});
+
+test("documentation returns the same page the hover shows, with usage and examples", () => {
+  const index = new rozone.RozoneIndex();
+  index.updateFile(examplePath, exampleText);
+  const page = index.documentation("wmean", examplePath);
+  assert.ok(page);
+  assert.match(page, /Weighted mean of a column/);
+  assert.match(page, /wmean\(x, w = rep\(1, length\(x\)\)\)/);
+  assert.match(page, /wmean\(1:3, c\(1, 1, 2\)\)/);
+  assert.equal(index.documentation("not_a_known_fn", examplePath), undefined);
+});
+
+test("removeFile drops a file's docs from hover and documentedFunctions", () => {
+  const index = new rozone.RozoneIndex();
+  index.updateFile(examplePath, exampleText);
+  index.removeFile(examplePath);
+  assert.equal(index.hover(examplePath, calleeOffset(exampleText) + 1), undefined);
+  assert.deepEqual(index.documentedFunctions(), []);
 });

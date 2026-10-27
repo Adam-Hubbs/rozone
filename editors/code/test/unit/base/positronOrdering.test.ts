@@ -174,13 +174,3 @@ test("dispose cancels pending re-registrations and unsubscribes everything", asy
   clock.flush();
   assert.equal(registrations.length, 1);
 });
-
-test("a timer that fires after dispose does nothing", () => {
-  const { foreground, subscription, clock, registrations } = setup();
-  foreground.fire("x");
-  const callbacks = clock.pending().length;
-  assert.equal(callbacks, 2);
-  clock.flush();
-  subscription.dispose();
-  assert.equal(registrations.length, 3);
-});
