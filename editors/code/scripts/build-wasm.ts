@@ -43,6 +43,13 @@ if (dev) {
   const before = kib(wasmPath);
   run("wasm-opt", ["-Oz", wasmPath, "-o", wasmPath]);
   console.log(`wasm-opt -Oz: ${before} -> ${kib(wasmPath)}`);
+  // Old binaryen releases can emit a module that wasm-bindgen's glue cannot instantiate.
+  const glue = join(outDir, `${outName}.js`);
+  const load = spawnSync(process.execPath, ["-e", `require(${JSON.stringify(glue)})`], { encoding: "utf8" });
+  if (load.status !== 0) {
+    const version = spawnSync("wasm-opt", ["--version"], { encoding: "utf8" }).stdout.trim();
+    throw new Error(`the module optimised by ${version} fails to load; upgrade binaryen.\n${load.stderr}`);
+  }
 } else {
   console.warn("warning: wasm-opt not found on PATH; skipping size optimisation");
   console.log(`wasm size: ${kib(wasmPath)}`);
