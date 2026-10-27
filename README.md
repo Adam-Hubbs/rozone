@@ -56,7 +56,6 @@ rozone/                          (Rust workspace, edition 2024)
 | `editors/code` | VS Code and Positron extension (TypeScript), sidecar R code, tests, packaging. |
 | `editors/code/r` | `sidecar.R`, plus its testthat suite (`tests/testthat`) and hostile fixtures. |
 | `fuzz` | cargo-fuzz targets (separate Cargo workspace). See `docs/fuzzing.md`. |
-| `spike` | Early prototypes kept for reference. Not part of the build. |
 | `docs` | `contracts.md` (interface contracts), `fuzzing.md` (fuzzing notes). |
 
 ## Prerequisites

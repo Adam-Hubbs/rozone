@@ -370,7 +370,8 @@ spawned**. Check this with the output channel and the process list.
 - `->` assignment shape.
 - Size after `wasm-opt`.
 
-Spikes:
+Spikes (removed once the core and sidecar replaced them; see git history
+before 0.2.0):
 - `spike/air_roxygen/`: the Rust core, WASM build, and Node runner
   `run_wasm.mjs`.
 - `spike/ark_help_injection.R`: the sidecar build logic and the injection

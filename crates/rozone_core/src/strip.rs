@@ -1,9 +1,9 @@
-//! Removes R code from roxygen comment lines. A port of `strip_r_code()` in
-//! `spike/ark_help_injection.R`: documenting a script must never evaluate code.
+//! Removes R code from roxygen comment lines. Mirrors `strip_r_code()` in
+//! `editors/code/r/sidecar.R`: documenting a script must never evaluate code.
 
 /// The text of a roxygen line after the `#'` prefix and one optional
-/// whitespace character, or `None` for any other line. Like roxygen2 (and
-/// unlike the R spike) this also accepts `##'`; those lines are stripped too.
+/// whitespace character, or `None` for any other line. Like roxygen2 and the
+/// sidecar, this also accepts `##'`; those lines are stripped too.
 pub fn roxygen_body(line: &str) -> Option<&str> {
     let rest = line
         .trim_start()

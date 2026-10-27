@@ -1,7 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/rozone_core", "crates/rozone_wasm"]
-exclude = ["spike/air_roxygen"]
 
 [workspace.package]
 version = "0.1.0"

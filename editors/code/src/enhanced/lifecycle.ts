@@ -301,7 +301,7 @@ export class SidecarController {
     if (this.#disposed || this.#gate() || this.#blocked) return;
     const client = await this.#ensureClient();
     if (!client || this.#disposed) return;
-    const { base, log, env, config } = this.#deps;
+    const { log, env, config } = this.#deps;
     const files = await this.#collectFiles();
     const install = env.isPositron && config.helpInjection() && this.#deps.injector !== undefined;
     try {
