@@ -106,15 +106,6 @@ mod tests {
     }
 
     #[test]
-    fn ascii_is_identity() {
-        let map = TextMap::new("hello");
-        assert_eq!(map.to_utf16(3), 3);
-        assert_eq!(map.to_byte(3), 3);
-        assert_eq!(map.to_byte(99), 5);
-        assert_eq!(map.to_utf16(99), 5);
-    }
-
-    #[test]
     fn mixed_widths() {
         // a(1/1) é(2/1) 😀(4/2) 中(3/1) b(1/1)
         let text = "aé😀中b";

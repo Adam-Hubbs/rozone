@@ -167,6 +167,81 @@ fn empty_and_unparseable_files() {
 }
 
 #[test]
+fn hover_uses_the_r_help_layout() {
+    let text = "#' Combine things\n#'\n#' Joins them.\n#'\n#' Longer details.\n#'\n#' @param x,y Shared doc.\n#' @param z Own doc.\n#' @returns A thing.\n#' @section Warning:\n#' Be careful.\n#' @seealso [other()]\n#' @examples\n#' comb(1, 2, 3)\ncomb <- function(x, y, z) NULL\n";
+    let index = index_of(&[("/dir/s.R", text)]);
+    let hover = index.hover("/dir/s.R", offset_of(text, "comb <-")).unwrap();
+    let expected = "_comb {s.R}_\n\n## Combine things\n\n------\n\n### Description\n\nJoins them.\n\n### Usage\n\n```r\ncomb(x, y, z)\n```\n\n### Arguments\n\n|     |     |\n| --- | --- |\n| `x`, `y` | Shared doc. |\n| `z` | Own doc. |\n\n### Details\n\nLonger details.\n\n### Value\n\nA thing.\n\n### Warning\n\nBe careful.\n\n### See Also\n\n`other()`\n\n### Examples\n\n```r\ncomb(1, 2, 3)\n```";
+    assert_eq!(hover.markdown.trim_end(), expected);
+    assert_eq!(
+        index.documentation("comb", None).unwrap().trim_end(),
+        expected
+    );
+}
+
+#[test]
+fn undocumented_and_unknown_callees_return_none() {
+    let text =
+        "#' Doc\nf <- function(x) NULL\ng <- function(x) NULL\nf(1)\ng(1)\nbase::f(1)\nnope(1)\n";
+    let index = index_of(&[("/s.R", text)]);
+    for needle in ["g(1)", "base::f(1)", "nope(1)"] {
+        let offset = offset_of(text, needle) + needle.len() as u32 - 3;
+        assert!(index.hover("/s.R", offset).is_none(), "{needle}");
+        assert!(index.signature_help("/s.R", offset).is_none(), "{needle}");
+    }
+}
+
+#[test]
+fn first_definition_in_a_file_wins() {
+    let text = "#' First\nf <- function(x) NULL\n\n#' Second\nf <- function(x) NULL\nf(1)\n";
+    let index = index_of(&[("/s.R", text)]);
+    let hover = index.hover("/s.R", offset_of(text, "f(1)") + 1).unwrap();
+    assert!(hover.markdown.contains("First"));
+    assert!(!hover.markdown.contains("Second"));
+}
+
+#[test]
+fn right_assignment_definitions_resolve() {
+    let text = "#' Doc\n(function(x) x) -> f\nf(1)\n";
+    let index = index_of(&[("/s.R", text)]);
+    let hover = index.hover("/s.R", offset_of(text, "f(1)")).unwrap();
+    assert_eq!(hover.name, "f");
+    assert_eq!(index.documented_functions()[0].name, "f");
+}
+
+#[test]
+fn documented_functions_list_every_documented_definition() {
+    let index = index_of(&[
+        (
+            "/b.R",
+            "#' B fn\nb <- function() NULL\nplain <- function() NULL\n",
+        ),
+        ("/a.R", "#' A fn\na <- function() NULL\n"),
+    ]);
+    let mut got: Vec<_> = index
+        .documented_functions()
+        .into_iter()
+        .map(|f| (f.name, f.path, f.title))
+        .collect();
+    got.sort();
+    assert_eq!(
+        got,
+        [
+            (
+                "a".to_string(),
+                "/a.R".to_string(),
+                Some("A fn".to_string())
+            ),
+            (
+                "b".to_string(),
+                "/b.R".to_string(),
+                Some("B fn".to_string())
+            ),
+        ]
+    );
+}
+
+#[test]
 fn identical_update_is_a_no_op() {
     let mut index = index_of(&[("/s.R", WMEAN)]);
     index.update_file("/s.R", WMEAN);
@@ -443,5 +518,49 @@ mod manifest {
             .markdown;
         assert!(md.contains("| `x` | X. |\n| `w` | W. |"), "{md}");
         assert!(!md.contains("gone"));
+    }
+
+    #[test]
+    fn missing_files_key_is_an_empty_manifest() {
+        let mut index = index_of(&[("/s.R", WMEAN)]);
+        index.load_manifest(r#"{"version":1}"#).unwrap();
+        assert_eq!(
+            index
+                .hover("/s.R", offset_of(WMEAN, "wmean <-"))
+                .unwrap()
+                .source,
+            DocSource::Static
+        );
+    }
+
+    #[test]
+    fn manifest_takes_over_per_file_only() {
+        let other = "#' Other static\nother <- function() NULL\n";
+        let mut index = index_of(&[("/s.R", WMEAN), ("/o.R", other)]);
+        index
+            .load_manifest(&manifest_for("/s.R", WMEAN, TOPIC))
+            .unwrap();
+        assert_eq!(
+            index
+                .hover("/o.R", offset_of(other, "other <-"))
+                .unwrap()
+                .source,
+            DocSource::Static
+        );
+    }
+
+    #[test]
+    fn manifest_serves_hover_on_calls_in_other_files() {
+        let user = "wmean(1, )\n";
+        let mut index = index_of(&[("/s.R", WMEAN), ("/u.R", user)]);
+        index
+            .load_manifest(&manifest_for("/s.R", WMEAN, TOPIC))
+            .unwrap();
+        let hover = index.hover("/u.R", 1).unwrap();
+        assert_eq!(
+            (hover.source, hover.kind),
+            (DocSource::Manifest, HoverKind::Call)
+        );
+        assert!(hover.markdown.contains("## Manifest title"));
     }
 }

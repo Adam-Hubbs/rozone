@@ -367,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_exact_names_second_is_unmatched() {
+    fn duplicate_exact_name_overflows_into_dots() {
         assert_eq!(matched(&["x", "..."], &["x", "x"]), [Some(0), Some(1)]);
     }
 
