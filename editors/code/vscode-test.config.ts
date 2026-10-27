@@ -82,7 +82,7 @@ export default defineConfig([
         "security.workspace.trust.emptyWindow": false,
       })}`,
     ],
-    useInstallation: { fromPath: join(root, "scripts", "untrusted-launcher.ts") },
+    useInstallation: { fromPath: join(root, "scripts", `untrusted-launcher.${process.platform === "win32" ? "cmd" : "ts"}`) },
     env: { ROZONE_REAL_EXECUTABLE: realExecutable },
     mocha: { ui: "tdd", timeout: 60_000, require: [spy] },
   },
