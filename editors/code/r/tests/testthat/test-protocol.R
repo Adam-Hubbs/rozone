@@ -21,15 +21,6 @@ test_that("hello comes first with versions and an empty missing array", {
   )
 })
 
-test_that("hello_line renders valid JSON without jsonlite", {
-  line <- hello_line(c("roxygen2", "notapkg.zzz"))$line
-  parsed <- jsonlite::fromJSON(line, simplifyVector = FALSE)
-  expect_identical(parsed$missing, list("notapkg.zzz"))
-  expect_false(hello_line(c("notapkg.zzz"))$ok)
-  expect_true(hello_line(character())$ok)
-  expect_match(hello_line(character())$line, "\"missing\":[]", fixed = TRUE)
-})
-
 test_that("a missing package gives ok:false and exit status 3", {
   session <- start_sidecar(c(
     ROZONE_SIDECAR_REQUIRE = "roxygen2,jsonlite,notapkg.zzz"
@@ -125,17 +116,11 @@ test_that("empty and no-topic builds are valid (regression)", {
   expect_identical(empty$result$manifest$files, list())
 })
 
-test_that("the example script builds through the real process (regression)", {
-  example <- normalizePath(test_path(
-    "..",
-    "..",
-    "..",
-    "..",
-    "..",
-    "spike",
-    "example_script.R"
-  ))
-  skip_if_not(file.exists(example))
+test_that("the shared example script builds through the real process (regression)", {
+  example <- test_path(
+    "..", "..", "..", "test", "fixtures", "workspace", "example_script.R"
+  )
+  expect_true(file.exists(example))
   text <- paste(readLines(example, warn = FALSE), collapse = "\n")
   session <- start_sidecar()
   read_message(session)

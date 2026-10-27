@@ -85,6 +85,19 @@ example_script_text <- function() {
   )
 }
 
+# Topic names that resolve in an installed rozone.docs library.
+installed_topics <- function(lib_dir) {
+  code <- c(
+    "lib <- commandArgs(TRUE)[[1]]",
+    "db <- tools::Rd_db('rozone.docs', lib.loc = lib)",
+    "cat(paste0('TOPIC:', names(db)), sep = '\\n')"
+  ) |>
+    paste(collapse = "\n")
+  child_r(code, lib_dir) |>
+    grep(pattern = "^TOPIC:", value = TRUE) |>
+    sub(pattern = "^TOPIC:", replacement = "")
+}
+
 # A running sidecar process ----------------------------------------------------
 
 start_sidecar <- function(

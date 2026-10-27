@@ -296,3 +296,16 @@ test_that("CRLF line endings are handled", {
   expect_identical(topic$title, "Title")
   expect_identical(topic$params[[1]]$md, "X.")
 })
+
+test_that("markdown is kept as source and inline R code is dropped from it", {
+  text <- c(
+    "#' Title with `r 1 + 1`",
+    "#'",
+    "#' Uses **bold** and `code`, today is `r Sys.Date()`.",
+    "f <- function() NULL"
+  ) |>
+    paste(collapse = "\n")
+  topic <- first_topic(build_text(text))
+  expect_identical(topic$title, "Title with")
+  expect_identical(topic$description_md, "Uses **bold** and `code`, today is .")
+})

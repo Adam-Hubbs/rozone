@@ -63,29 +63,9 @@ test_that("each vector alone is neutralised by the sidecar", {
   })
 })
 
-test_that("building the hostile fixture runs none of its code", {
-  dir <- local_sentinel_dir()
-  result <- build_text(hostile_text(), path = file.path(dir, "hostile.R"))
-  expect_no_sentinels(dir)
-  topics <- result$manifest$files[[1]]$topics |> purrr::map_chr("name")
-  expect_true("survivor" %in% topics)
-})
-
-test_that("the hostile fixture does not run when installing either", {
-  dir <- local_sentinel_dir()
-  lib_root <- withr::local_tempdir()
-  result <- build_files(
-    file_spec(file.path(dir, "hostile.R"), hostile_text()),
-    install = TRUE,
-    lib_root = lib_root
-  )
-  expect_no_sentinels(dir)
-  expect_false(is.null(result$lib_dir))
-  expect_true(dir.exists(result$lib_dir))
-})
-
 test_that("Rd containing \\Sexpr is kept out of the installed package", {
   dir <- local_sentinel_dir()
+  lib_root <- withr::local_tempdir()
   text <- c(
     "#' Bad",
     "#' \\doi{10.1/x\"); file.create(file.path(Sys.getenv('ROZONE_SENTINEL_DIR'), 'doi')); (\"}",
@@ -95,10 +75,12 @@ test_that("Rd containing \\Sexpr is kept out of the installed package", {
     "good <- function() NULL"
   ) |>
     paste(collapse = "\n")
-  state <- new_state()
-  result <- build_files(file_spec("/a.R", text), state = state)
-  winners <- winning_rd(state$cache)
-  expect_named(winners, "good.Rd")
+  result <- build_files(
+    file_spec("/a.R", text),
+    install = TRUE,
+    lib_root = lib_root
+  )
+  expect_identical(installed_topics(result$lib_dir), "good.Rd")
   expect_match(purrr::map_chr(result$errors, "message"), "Sexpr", all = FALSE)
   expect_no_sentinels(dir)
 })

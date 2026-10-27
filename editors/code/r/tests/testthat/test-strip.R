@@ -138,39 +138,3 @@ test_that("indented and ##' comment prefixes are recognised", {
   expect_identical(strip_r_code("  #' @eval stop()"), character())
   expect_identical(strip_r_code("##' @eval stop()"), character())
 })
-
-test_that("with_markdown_tags appends @md to every block end", {
-  lines <- c("#' One", "f <- 1", "#' Two", "#' more", "g <- 2", "h <- 3")
-  expect_identical(
-    with_markdown_tags(lines),
-    c(
-      "#' One",
-      "#' @md",
-      "f <- 1",
-      "#' Two",
-      "#' more",
-      "#' @md",
-      "g <- 2",
-      "h <- 3"
-    )
-  )
-  expect_identical(with_markdown_tags(character()), character())
-  expect_identical(with_markdown_tags("#' end"), c("#' end", "#' @md"))
-})
-
-test_that("strip output on a mixed sample", {
-  lines <- c(
-    "library(dplyr)",
-    "",
-    "#' Title with `r 1 + 1`",
-    "#'",
-    "#' ```{r}",
-    "#' hostile()",
-    "#' ```",
-    "#' Details `kept`.",
-    "#' @eval hostile()",
-    "#' @param x A thing.",
-    "f <- function(x) x"
-  )
-  expect_snapshot(writeLines(strip_r_code(lines)))
-})

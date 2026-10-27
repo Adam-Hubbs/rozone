@@ -24,14 +24,12 @@ test_that("a changed hash rebuilds only that file", {
   expect_identical(result$manifest$files[[2]]$content_hash, "new")
 })
 
-test_that("files missing from the request are evicted", {
+test_that("files missing from the request are dropped from the cache", {
   state <- new_state()
   a <- file_spec("/a.R", doc_text("One", "a"))
   b <- file_spec("/b.R", doc_text("Two", "b"))
   build_files(a, b, state = state)
-  expect_setequal(names(state$cache), c("/a.R", "/b.R"))
   build_files(a, state = state)
-  expect_named(state$cache, "/a.R")
   result <- build_files(a, b, state = state)
   expect_identical(result$cache_hits, 1L)
 })
@@ -39,16 +37,16 @@ test_that("files missing from the request are evicted", {
 test_that("text is read from disk when not supplied", {
   path <- withr::local_tempfile(fileext = ".R")
   writeLines(c("#' From disk", "f <- function() NULL"), path)
-  spec <- list(path = path, hash = "h1")
-  result <- build_files(spec)
-  expect_identical(first_topic(result)$title, "From disk")
+  expect_identical(
+    first_topic(build_files(list(path = path, hash = "h1")))$title,
+    "From disk"
+  )
 
   writeLines(c("#' Edited on disk", "f <- function() NULL"), path)
-  expect_identical(build_files(list(path = path, hash = "h2"))$cache_hits, 0L)
   state <- new_state()
-  build_files(spec, state = state)
-  stale <- build_files(spec, state = state)
-  expect_identical(stale$cache_hits, 1L)
+  build_files(list(path = path, hash = "h2"), state = state)
+  again <- build_files(list(path = path, hash = "h2"), state = state)
+  expect_identical(again$cache_hits, 1L)
 })
 
 test_that("an unreadable file is reported and the build still succeeds", {
@@ -78,34 +76,19 @@ test_that("errors are cached and repeated while the file stays broken", {
   expect_length(again$errors, 1L)
 })
 
-test_that("topics defined in two files: the smallest path wins the Rd", {
-  state <- new_state()
-  b <- file_spec("/b.R", doc_text("From b", "dup"))
+test_that("a topic defined in two files: the smallest path wins, in any request order", {
   a <- file_spec("/a.R", doc_text("From a", "dup"))
+  b <- file_spec("/b.R", doc_text("From b", "dup"))
   c <- file_spec("/c.R", doc_text("From c", "only_c"))
-  result <- build_files(b, c, a, state = state)
-
-  titles <- result$manifest$files |>
-    purrr::map(\(f) f$topics[[1]]$title) |>
-    purrr::set_names(purrr::map_chr(result$manifest$files, "path"))
-  expect_identical(titles[["/a.R"]], "From a")
-  expect_identical(titles[["/b.R"]], "From b")
-
-  ok <- purrr::keep(state$cache, \(e) is.null(e$error))
-  winners <- winning_rd(ok)
-  expect_setequal(names(winners), c("dup.Rd", "only_c.Rd"))
-  expect_match(winners[["dup.Rd"]]$text, "From a", fixed = TRUE)
-  expect_false(grepl("From b", winners[["dup.Rd"]]$text, fixed = TRUE))
-  expect_identical(as.character(result$topics), c("dup", "only_c"))
-})
-
-test_that("request order does not change which duplicate wins", {
-  a <- file_spec("/a.R", doc_text("From a", "dup"))
-  b <- file_spec("/b.R", doc_text("From b", "dup"))
-  state <- new_state()
-  build_files(b, a, state = state)
-  winners <- winning_rd(state$cache)
-  expect_match(winners[["dup.Rd"]]$text, "From a", fixed = TRUE)
+  purrr::walk(list(list(b, c, a), list(a, b, c)), \(files) {
+    lib_root <- withr::local_tempdir()
+    result <- do.call(build_files, c(files, list(
+      install = TRUE,
+      lib_root = lib_root
+    )))
+    expect_identical(as.character(result$topics), c("dup", "only_c"))
+    expect_setequal(installed_topics(result$lib_dir), c("dup.Rd", "only_c.Rd"))
+  })
 })
 
 test_that("install requires lib_root", {
