@@ -152,7 +152,7 @@ jobs:
         run: node editors/code/scripts/build-wasm.ts
       - name: Package
         run: npm --prefix editors/code run package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rozone-vsix
           path: editors/code/*.vsix
