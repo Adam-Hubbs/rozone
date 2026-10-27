@@ -58,7 +58,7 @@ jobs:
           echo "${BINARYEN_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
           tar xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -121,7 +121,7 @@ jobs:
       - name: Install binaryen (macOS)
         if: runner.os == 'macOS'
         run: brew install binaryen
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -162,7 +162,7 @@ jobs:
           echo "${BINARYEN_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
           tar xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
