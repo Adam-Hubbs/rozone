@@ -37,4 +37,8 @@ export interface PositronBridge {
   onDidChangeForegroundSession(listener: (session: RSession | undefined) => void): Disposable;
   /** State changes of the foreground session only. */
   onDidChangeSessionState(listener: (event: { sessionId: string; state: SessionState }) => void): Disposable;
+  /** Ids of all live R sessions, in any window state Positron knows about. */
+  activeSessionIds(): Promise<string[]>;
+  /** Fires once with Positron's `RuntimeExitReason` string when the session's process ends. */
+  onDidEndSession(sessionId: string, listener: (reason: string) => void): Disposable;
 }

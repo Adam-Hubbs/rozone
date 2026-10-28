@@ -22,7 +22,8 @@ export interface BaseLike {
 
 export interface InjectorLike {
   readonly active: boolean;
-  inject(libDir: string, topics: readonly string[]): Promise<void>;
+  buildTarget(): Promise<{ sessionId: string; libRoot: string } | undefined>;
+  inject(sessionId: string, libDir: string, topics: readonly string[]): Promise<void>;
   clear(): void;
 }
 
@@ -36,7 +37,6 @@ export interface ControllerDeps {
   resetLaunch?(): void;
   createClient(spec: LaunchSpec): SidecarLike;
   readFile(path: string): Promise<string>;
-  libRoot: string;
   injector?: InjectorLike | undefined;
   notifyRoxygenMissing(): void;
   onState(state: ViewState): void;
@@ -303,15 +303,17 @@ export class SidecarController {
     if (!client || this.#disposed) return;
     const { log, env, config } = this.#deps;
     const files = await this.#collectFiles();
-    const install = env.isPositron && config.helpInjection() && this.#deps.injector !== undefined;
+    const wantsInstall = env.isPositron && config.helpInjection() && this.#deps.injector !== undefined;
+    const target = wantsInstall ? await this.#deps.injector?.buildTarget() : undefined;
+    if (this.#disposed) return;
     try {
       const result = await client.request<BuildResult>(
         "build",
-        { files, install, lib_root: this.#deps.libRoot },
+        target ? { files, install: true, lib_root: target.libRoot } : { files, install: false },
         this.#deps.buildTimeoutMs ?? 120_000,
       );
       this.#armIdle();
-      await this.#applyResult(result);
+      await this.#applyResult(result, target?.sessionId);
     } catch (error) {
       if (error instanceof SidecarError && error.code === "timeout") {
         log.error("sidecar build timed out; restarting it");
@@ -342,7 +344,7 @@ export class SidecarController {
     return entries.filter((e) => e !== undefined);
   }
 
-  async #applyResult(result: BuildResult): Promise<void> {
+  async #applyResult(result: BuildResult, sessionId: string | undefined): Promise<void> {
     const { base, log, injector } = this.#deps;
     for (const e of result.errors ?? []) log.warn(`roxygen2 could not process ${e.path}: ${e.message}`);
     try {
@@ -350,7 +352,7 @@ export class SidecarController {
     } catch (error) {
       log.error(`manifest rejected: ${String(error)}`);
     }
-    if (result.lib_dir && injector) await injector.inject(result.lib_dir, result.topics);
+    if (result.lib_dir && injector && sessionId) await injector.inject(sessionId, result.lib_dir, result.topics);
     this.updateState();
   }
 }

@@ -134,6 +134,8 @@ describe("LaunchResolver", () => {
       },
       onDidChangeForegroundSession: () => ({ dispose() {} }),
       onDidChangeSessionState: () => ({ dispose() {} }),
+      activeSessionIds: async () => ["s1"],
+      onDidEndSession: () => ({ dispose() {} }),
     };
     return { bridge, evaluated };
   }

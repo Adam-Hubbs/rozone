@@ -47,6 +47,29 @@ export function createPositronBridge(api: PositronApi): PositronBridge {
       }
     },
 
+    async activeSessionIds() {
+      const sessions = await runtime.getActiveSessions();
+      return sessions.filter((s) => s.runtimeMetadata.languageId === "r").map((s) => s.metadata.sessionId);
+    },
+
+    onDidEndSession(sessionId, listener) {
+      let sub: Disposable | undefined;
+      let disposed = false;
+      void runtime.getSession(sessionId).then((session) => {
+        if (disposed) return;
+        const watched = session as
+          | { onDidEndSession?: (l: (exit: { reason: string }) => void) => Disposable }
+          | undefined;
+        sub = watched?.onDidEndSession?.((exit) => listener(exit.reason));
+      });
+      return {
+        dispose() {
+          disposed = true;
+          sub?.dispose();
+        },
+      };
+    },
+
     onDidChangeForegroundSession(listener) {
       return runtime.onDidChangeForegroundSession(async () => listener(toRSession(await runtime.getForegroundSession())));
     },

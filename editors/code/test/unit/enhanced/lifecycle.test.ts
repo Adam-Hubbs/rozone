@@ -67,7 +67,7 @@ interface Harness {
   contents: Map<string, string>;
   hasR: boolean;
   roxygenNotices: number;
-  injector: InjectorLike & { injected: { libDir: string; topics: readonly string[] }[]; cleared: number; active: boolean };
+  injector: InjectorLike & { injected: { sessionId: string; libDir: string; topics: readonly string[] }[]; target: { sessionId: string; libRoot: string } | undefined; cleared: number; active: boolean };
   now: number;
   nextClient: () => FakeClient;
   logs: string[];
@@ -94,11 +94,15 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
     now: 1_000_000,
     logs: [] as string[],
     injector: {
-      injected: [] as { libDir: string; topics: readonly string[] }[],
+      injected: [] as { sessionId: string; libDir: string; topics: readonly string[] }[],
+      target: { sessionId: "s1", libRoot: "/store/s1" } as { sessionId: string; libRoot: string } | undefined,
       cleared: 0,
       active: false,
-      async inject(libDir: string, topics: readonly string[]) {
-        this.injected.push({ libDir, topics });
+      async buildTarget() {
+        return this.target;
+      },
+      async inject(sessionId: string, libDir: string, topics: readonly string[]) {
+        this.injected.push({ sessionId, libDir, topics });
         this.active = true;
         h.controller.updateState();
       },
@@ -149,7 +153,6 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
       if (text === undefined) throw new Error("ENOENT");
       return text;
     },
-    libRoot: "/global",
     injector: h.injector,
     notifyRoxygenMissing: () => {
       h.roxygenNotices++;
@@ -270,7 +273,6 @@ describe("SidecarController", () => {
           { path: "/w/b.R", hash: "hash(b <- 2)", text: "b <- 2" },
         ],
         install: false,
-        lib_root: "/global",
       });
       assert.equal(h.manifests.length, 1);
       assert.equal(JSON.parse(h.manifests[0] ?? "{}").version, 1);
@@ -562,8 +564,21 @@ describe("SidecarController", () => {
       h.positron = true;
       await h.controller.refresh();
       assert.equal(h.clients[0]?.requests[0]?.params.install, true);
-      assert.deepEqual(h.injector.injected, [{ libDir: "/global/lib-1", topics: ["t_/w/a.R", "t_/w/b.R"] }]);
+      assert.equal(h.clients[0]?.requests[0]?.params.lib_root, "/store/s1");
+      assert.deepEqual(h.injector.injected, [
+        { sessionId: "s1", libDir: "/store/s1/lib-1", topics: ["t_/w/a.R", "t_/w/b.R"] },
+      ]);
       assert.deepEqual(lastState(h), { tier: "enhanced+help" });
+    });
+
+    it("does not install when there is no foreground R session", async () => {
+      const h = harness();
+      h.positron = true;
+      h.injector.target = undefined;
+      await h.controller.refresh();
+      assert.equal(h.clients[0]?.requests[0]?.params.install, false);
+      assert.equal("lib_root" in (h.clients[0]?.requests[0]?.params ?? {}), false);
+      assert.equal(h.injector.injected.length, 0);
     });
 
     it("does not install in plain VS Code", async () => {

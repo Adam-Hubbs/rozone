@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ActivateEnhanced, BaseTierApi } from "./api.ts";
+import { LibStore } from "./libStore.ts";
 import { SidecarController, type ViewState } from "./lifecycle.ts";
 import { PositronInjector } from "./positronInjector.ts";
 import { createPositronBridge, tryAcquirePositronApi } from "./positronApi.ts";
@@ -44,7 +45,8 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   const positronApi = tryAcquirePositronApi();
   const bridge = positronApi ? createPositronBridge(positronApi) : undefined;
   const sidecarScript = path.join(context.extensionPath, "r", "sidecar.R");
-  const libRoot = context.globalStorageUri.fsPath;
+  const storageRoot = context.storageUri?.fsPath ?? path.join(context.globalStorageUri.fsPath, "no-workspace");
+  const store = new LibStore(storageRoot, base.log);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 0);
   status.command = SHOW_LOG_COMMAND;
@@ -65,7 +67,9 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   const injector = bridge
     ? new PositronInjector({
         bridge,
+        store,
         log: base.log,
+        requestBuild: () => controller?.requestBuild(),
         setInjectedTopics: (names) => base.setInjectedTopics(names),
         onActiveChange: () => controller?.updateState(),
       })
@@ -87,13 +91,11 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
     resolveLaunch: () => resolver.resolve(),
     resetLaunch: () => resolver.reset(),
     createClient: (spec) => {
-      fs.mkdirSync(libRoot, { recursive: true });
       const cwd = vscode.workspace.workspaceFolders?.find((f) => f.uri.scheme === "file")?.uri.fsPath;
       testClient = new SidecarClient({ ...spec, cwd, log: base.log });
       return testClient;
     },
     readFile: (file) => fs.promises.readFile(file, "utf8"),
-    libRoot,
     injector,
     notifyRoxygenMissing: () => {
       void vscode.window.showInformationMessage("Install roxygen2 for richer docs");
@@ -129,6 +131,16 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   ];
 
   void (base.ready ?? Promise.resolve()).then(() => live.refresh());
+
+  if (bridge) {
+    void (base.ready ?? Promise.resolve())
+      .then(async () => {
+        const now = Date.now();
+        await store.sweep(await bridge.activeSessionIds(), now);
+        await store.cleanLegacy(context.globalStorageUri.fsPath, now);
+      })
+      .catch((error: unknown) => base.log.warn(`startup cleanup failed: ${String(error)}`));
+  }
 
   return new vscode.Disposable(() => {
     live.dispose();
