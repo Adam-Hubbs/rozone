@@ -193,9 +193,17 @@ exactly one `{"id": <same>, "result": {...}}` or
 
 - `build`
   - params: `{ "files": [{ "path": "...", "hash": "...", "text": "..."? }], "install": false, "lib_root": "/workspaceStorage/<session id>"? }`
-    - `text` is optional; if absent the file is read from disk.
+    - `hash` is the file's **doc hash** (§0) and keys the sidecar's per-file
+      cache: a body-only edit keeps the cached entry.
+    - `text` is optional. The extension sends the indexed (live) text only for
+      files whose `(path, hash)` the running sidecar process has not built yet;
+      if `text` is absent and the cache has no entry for that hash, the file is
+      read from disk.
     - The request lists the **complete** set of workspace files; files not
       listed are dropped from the cache.
+    - The extension sends no request at all when every doc hash and the
+      `lib_root` equal those of the last successful build, so R is not
+      started for saves that cannot change any documentation.
   - result: `{ "manifest": <§3>, "lib_dir": "/.../lib-<gen>" | null, "topics": ["wmean", ...], "cache_hits": <int>, "errors": [{ "path": "...", "message": "..." }] }`
     - A file roxygen2 can't parse goes in `errors` and is omitted from the
       manifest; the rest of the build still succeeds.
@@ -206,9 +214,10 @@ exactly one `{"id": <same>, "result": {...}}` or
       collision resolution (smallest path wins), i.e. what the hover provider
       skips for call sites once injected.
     - An `R CMD INSTALL` failure does not fail the build: `lib_dir` is `null`
-      and `errors` gets an entry with `path: "rozone.docs"`. An unchanged
-      `(path, hash)` set reuses the previous `lib_dir` installed into the
-      same `lib_root`, as long as that directory still exists.
+      and `errors` gets an entry with `path: "rozone.docs"`. Unchanged
+      generated Rd (the winning topics' Rd files and text) reuses the
+      previous `lib_dir` installed into the same `lib_root`, as long as that
+      directory still exists.
     - Cross-package inheritance from an uninstalled package adds an `errors`
       entry for that file; the file stays in the manifest.
     - Generated Rd whose macro-expanded tree contains `\Sexpr` is dropped
