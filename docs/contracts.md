@@ -105,6 +105,11 @@ Resolution rules:
   (name -> defining paths, `@rdname` and `@describeIn` members) updated per
   file in `update_file`/`remove_file`. Inheritance expansion is memoised per
   resolution and capped at depth 16.
+- Memory is bounded: each file is kept as plain owned data (definitions,
+  formals, parameter text, doc hash, text). Syntax trees live only in a small
+  LRU (12 files, most recently updated or queried); positional queries
+  (`hover`, `signature_help`) re-parse a missing tree from the stored text.
+  Resolving other files' definitions never needs their trees.
 
 ## 2. WASM API (`rozone_wasm`, JS, `wasm-pack build --target nodejs`)
 

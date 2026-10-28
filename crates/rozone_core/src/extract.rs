@@ -14,22 +14,22 @@ pub struct Formal {
     pub default: Option<String>,
 }
 
-/// Formals and the roxygen block are derived on first use: most definitions
-/// are never queried.
+/// Plain owned data, so a file's syntax tree can be dropped once parsed. The
+/// roxygen block is parsed from its stored span on first use.
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub name: String,
     /// The identifier being assigned to.
     pub name_range: TextRange,
-    function: RFunctionDefinition,
+    formals: Vec<Formal>,
+    params_text: String,
     block_span: Option<TextRange>,
-    formals: OnceCell<Vec<Formal>>,
     block: OnceCell<Option<Block>>,
 }
 
 impl Definition {
     pub fn formals(&self) -> &[Formal] {
-        self.formals.get_or_init(|| formals(&self.function))
+        &self.formals
     }
 
     /// The parsed leading `#'` block. `text` is the text the definition was
@@ -57,11 +57,8 @@ impl Definition {
     }
 
     /// Exact source of the argument list, parentheses included.
-    pub fn params_text(&self) -> String {
-        self.function
-            .parameters()
-            .map(|p| p.syntax().text_trimmed().to_string())
-            .unwrap_or_default()
+    pub fn params_text(&self) -> &str {
+        &self.params_text
     }
 
     /// Whether the raw block mentions `tag`; lets the index find `@rdname` and
@@ -76,6 +73,10 @@ impl Definition {
 pub struct Parsed {
     pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
+}
+
+pub fn parse_tree(text: &str) -> RSyntaxNode {
+    air_r_parser::parse(text, RParserOptions::default()).syntax()
 }
 
 pub fn parse(text: &str) -> Parsed {
@@ -111,9 +112,12 @@ fn definition(expr: &AnyRExpression) -> Option<Definition> {
     Some(Definition {
         name,
         name_range: ident.syntax().text_trimmed_range(),
-        function,
+        formals: formals(&function),
+        params_text: function
+            .parameters()
+            .map(|p| p.syntax().text_trimmed().to_string())
+            .unwrap_or_default(),
         block_span: leading_block_span(binary.syntax()),
-        formals: OnceCell::new(),
         block: OnceCell::new(),
     })
 }

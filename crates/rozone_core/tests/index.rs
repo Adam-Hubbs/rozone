@@ -708,3 +708,65 @@ mod reverse_maps {
         assert!(page.contains("Level 40"));
     }
 }
+
+mod tree_cache {
+    use super::*;
+
+    const FILLERS: usize = 40;
+
+    fn evict(index: &mut Index) {
+        for i in 0..FILLERS {
+            index.update_file(
+                &format!("/zz{i:02}.R"),
+                &format!("#' F{i}\nfiller{i} <- function(x) NULL\n"),
+            );
+        }
+    }
+
+    #[test]
+    fn hover_and_signature_help_match_after_eviction() {
+        let child = "#' Child\n#' @inheritParams base\nchild <- function(data) NULL\nchild(1)\n";
+        let base = "#' Base\n#' @param data The data.\nbase <- function(data) NULL\n";
+        let mut index = index_of(&[("/base.R", base), ("/child.R", child)]);
+        let hover_at = offset_of(child, "child(1)") + 1;
+        let sig_at = offset_of(child, "1)") + 1;
+        let hover_before = index.hover("/child.R", hover_at);
+        let sig_before = index.signature_help("/child.R", sig_at);
+        let docs_before = index.documentation("child", Some("/child.R"));
+        assert!(hover_before.is_some());
+
+        evict(&mut index);
+
+        assert_eq!(index.hover("/child.R", hover_at), hover_before);
+        assert_eq!(index.signature_help("/child.R", sig_at), sig_before);
+        assert_eq!(index.documentation("child", Some("/child.R")), docs_before);
+        assert_eq!(
+            sig_before.unwrap().parameters[0].documentation,
+            "The data."
+        );
+    }
+
+    #[test]
+    fn fingerprints_and_listing_do_not_need_trees() {
+        let mut index = index_of(&[("/a.R", WMEAN)]);
+        let before = index.fingerprints();
+        let listed = index.documented_functions();
+        evict(&mut index);
+        let after = index.fingerprints();
+        assert_eq!(after.iter().find(|f| f.path == "/a.R"), before.first());
+        assert_eq!(index.documented_functions()[0], listed[0]);
+    }
+
+    #[test]
+    fn edits_after_eviction_replace_the_tree() {
+        let mut index = index_of(&[("/a.R", WMEAN)]);
+        evict(&mut index);
+        let edited = format!("{WMEAN}wmean(1)\n");
+        index.update_file("/a.R", &edited);
+        evict(&mut index);
+        let hover = index.hover("/a.R", offset_of(&edited, "wmean(1)") + 1);
+        assert_eq!(hover.unwrap().kind, HoverKind::Call);
+        index.remove_file("/a.R");
+        assert!(index.hover("/a.R", 0).is_none());
+    }
+}

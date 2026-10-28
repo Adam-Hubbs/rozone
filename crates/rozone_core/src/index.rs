@@ -1,13 +1,13 @@
 //! The workspace index and the cursor-driven queries on it.
 
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeSet, HashMap};
 
 use air_r_syntax::RSyntaxNode;
 use biome_rowan::TextSize;
 
 use crate::call::{IdentAt, Usage, call_at, ident_at, match_args};
-use crate::extract::{Definition, Formal, doc_canonical, parse};
+use crate::extract::{Definition, Formal, doc_canonical, parse, parse_tree};
 use crate::manifest::Manifest;
 use crate::roxygen::Block;
 use crate::text::TextMap;
@@ -25,16 +25,47 @@ pub(crate) struct FileMaps {
     pub by_describe: HashMap<String, Vec<usize>>,
 }
 
-/// A parsed file. The syntax tree is kept so queries never re-parse.
+/// A parsed file as plain owned data; the syntax tree is not retained (a
+/// green tree costs ~9x the text). Positional queries get it from the
+/// index's bounded `TreeCache`.
 #[derive(Debug)]
 pub(crate) struct FileEntry {
     hash: OnceCell<String>,
-    doc_hash: OnceCell<String>,
+    doc_hash: String,
     maps: OnceCell<FileMaps>,
     pub text: Box<str>,
     pub map: TextMap,
-    pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
+}
+
+/// How many syntax trees stay resident (~165 KB each for an 18 KB file).
+/// Editing and hovering touch one or two files at a time, so a dozen covers
+/// switching between recent tabs with ~2 MB of trees; anything older is
+/// re-parsed from its text in well under a millisecond.
+const TREE_CACHE_SIZE: usize = 12;
+
+/// Most recently used first.
+#[derive(Debug, Default)]
+struct TreeCache(Vec<(String, RSyntaxNode)>);
+
+impl TreeCache {
+    fn put(&mut self, path: &str, root: RSyntaxNode) {
+        self.remove(path);
+        self.0.insert(0, (path.to_string(), root));
+        self.0.truncate(TREE_CACHE_SIZE);
+    }
+
+    fn remove(&mut self, path: &str) {
+        self.0.retain(|(p, _)| p != path);
+    }
+
+    fn get(&mut self, path: &str) -> Option<RSyntaxNode> {
+        let pos = self.0.iter().position(|(p, _)| p == path)?;
+        let entry = self.0.remove(pos);
+        let root = entry.1.clone();
+        self.0.insert(0, entry);
+        Some(root)
+    }
 }
 
 impl FileEntry {
@@ -45,8 +76,7 @@ impl FileEntry {
 
     /// Hash of only what can change roxygen2's output (contracts §0).
     pub fn doc_hash(&self) -> &str {
-        self.doc_hash
-            .get_or_init(|| content_hash(&doc_canonical(&self.text, &self.root)))
+        &self.doc_hash
     }
 
     pub fn maps(&self) -> &FileMaps {
@@ -73,17 +103,17 @@ impl FileEntry {
         })
     }
 
-    fn new(text: &str) -> Self {
+    fn new(text: &str) -> (Self, RSyntaxNode) {
         let parsed = parse(text);
-        Self {
+        let entry = Self {
             hash: OnceCell::new(),
-            doc_hash: OnceCell::new(),
+            doc_hash: content_hash(&doc_canonical(text, &parsed.root)),
             maps: OnceCell::new(),
             text: text.into(),
             map: TextMap::new(text),
-            root: parsed.root,
             defs: parsed.defs,
-        }
+        };
+        (entry, parsed.root)
     }
 }
 
@@ -124,6 +154,7 @@ pub struct Index {
     by_rdname: HashMap<String, BTreeSet<(String, usize)>>,
     by_describe: HashMap<String, BTreeSet<(String, usize)>>,
     manifest: Option<Manifest>,
+    trees: RefCell<TreeCache>,
 }
 
 impl Index {
@@ -137,15 +168,28 @@ impl Index {
             return;
         }
         self.remove_file(path);
-        let entry = FileEntry::new(text);
+        let (entry, root) = FileEntry::new(text);
         self.index_entry(path, &entry);
         self.files.insert(path.to_string(), entry);
+        self.trees.get_mut().put(path, root);
     }
 
     pub fn remove_file(&mut self, path: &str) {
+        self.trees.get_mut().remove(path);
         if let Some(entry) = self.files.remove(path) {
             self.unindex_entry(path, &entry);
         }
+    }
+
+    /// The file's syntax tree: cached, else re-parsed from its stored text
+    /// (deterministic, so identical to the tree it had before eviction).
+    fn tree(&self, path: &str, file: &FileEntry) -> RSyntaxNode {
+        if let Some(root) = self.trees.borrow_mut().get(path) {
+            return root;
+        }
+        let root = parse_tree(&file.text);
+        self.trees.borrow_mut().put(path, root.clone());
+        root
     }
 
     fn index_entry(&mut self, path: &str, entry: &FileEntry) {
@@ -224,7 +268,7 @@ impl Index {
     pub fn hover(&self, path: &str, offset: u32) -> Option<Hover> {
         let file = self.files.get(path)?;
         let byte = TextSize::from(file.map.to_byte(offset));
-        let ident = ident_at(&file.root, byte)?;
+        let ident = ident_at(&self.tree(path, file), byte)?;
         let (def, kind) = self.hover_target(path, file, &ident)?;
         let doc = self.resolve(def)?;
         let signature = markdown::signature(&def.def().name, def.formals());
@@ -269,7 +313,7 @@ impl Index {
     pub fn signature_help(&self, path: &str, offset: u32) -> Option<SignatureHelp> {
         let file = self.files.get(path)?;
         let byte = TextSize::from(file.map.to_byte(offset));
-        let site = call_at(&file.root, byte)?;
+        let site = call_at(&self.tree(path, file), byte)?;
         let def = self.lookup(&site.callee, Some(path))?;
         let doc = self.resolve(def)?;
         let formals = def.formals();
