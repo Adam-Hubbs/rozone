@@ -154,8 +154,9 @@ produced into `editors/code/wasm/` by `npm run build:wasm` (which also writes a
 Process: `Rscript [--no-init-file] <ext>/r/sidecar.R`, with `R_LIBS` set by the
 client. One JSON object per line on stdin and stdout; logs on stderr only.
 
-**Hello** (written once at startup, before any request, without needing
-jsonlite; if a required package is missing, write it and exit with status 3):
+**Hello** (written once at startup, before any request, using base R only so
+it works when jsonlite, roxygen2 or purrr is missing; if a required package is
+missing, write it and exit with status 3):
 
 ```json
 {"event":"hello","protocol":1,"r_version":"4.6.1","packages":{"roxygen2":"8.1.0","jsonlite":"2.0.0"},"missing":[],"ok":true}
@@ -227,3 +228,8 @@ another session or window cleans up. The extension deletes:
 - the whole session directory when the session ends for good (not on
   `restart`, `transferred` or `extensionHost` exits);
 - at startup, session directories that are not live and untouched for 24h.
+
+Windows without a folder share `no-workspace/` but only see their own
+sessions, so every window touches (mtime) the directories of its live R
+sessions at startup and hourly; another window's sweep therefore never sees a
+live session's directory as untouched.
