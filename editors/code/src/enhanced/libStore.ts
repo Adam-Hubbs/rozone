@@ -42,6 +42,19 @@ export class LibStore {
     await this.#rm(this.sessionRoot(sessionId));
   }
 
+  /**
+   * Marks a live session's folder as in use. Windows without a folder share one root and only see their own
+   * sessions, so this heartbeat is what keeps another window's `sweep` away from a library still loaded here.
+   */
+  async touch(sessionId: string, now: number): Promise<void> {
+    const dir = this.sessionRoot(sessionId);
+    try {
+      await fs.utimes(dir, now / 1000, now / 1000);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.#warn(dir, error);
+    }
+  }
+
   /** Deletes session folders that are not live and have not been touched for `maxAgeMs`. */
   async sweep(liveIds: readonly string[], now: number, maxAgeMs: number = DAY_MS): Promise<void> {
     const live = new Set(liveIds.map(sanitizeSessionId));

@@ -83,6 +83,19 @@ describe("LibStore", () => {
     assert.ok(existsSync(join(dir, "root", "dead-new")));
   });
 
+  it("touch keeps another window's live session safe from this window's sweep", async () => {
+    make("root", "other-window", "lib-1");
+    age(join(dir, "root", "other-window"), 2 * DAY_MS);
+    await new LibStore(join(dir, "root"), { info() {}, warn() {}, error() {} }).touch("other-window", Date.now());
+    await store.sweep([], Date.now(), DAY_MS);
+    assert.ok(existsSync(join(dir, "root", "other-window", "lib-1")));
+  });
+
+  it("touch on a session without a folder is a quiet no-op", async () => {
+    await store.touch("never-built", Date.now());
+    assert.deepEqual(warnings, []);
+  });
+
   it("sweep on a missing root is a no-op", async () => {
     await store.sweep([], Date.now());
     assert.deepEqual(warnings, []);
