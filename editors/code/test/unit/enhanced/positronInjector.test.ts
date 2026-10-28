@@ -41,6 +41,7 @@ class FakeBridge implements PositronBridge {
   stateListeners = new Set<(e: { sessionId: string; state: SessionState }) => void>();
 
   foregroundSession = async () => this.session;
+  executeInConsole = async () => {};
   evaluate = async (sessionId: string, code: string): Promise<EvalOutcome> => {
     this.evaluated.push({ sessionId, code });
     return this.outcomes.shift() ?? { status: "ok", value: null };

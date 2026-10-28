@@ -66,7 +66,9 @@ interface Harness {
   files: string[];
   contents: Map<string, string>;
   hasR: boolean;
+  withSession: boolean;
   roxygenNotices: number;
+  roxygenMissing: readonly string[];
   injector: InjectorLike & { injected: { sessionId: string; libDir: string; topics: readonly string[] }[]; target: { sessionId: string; libRoot: string } | undefined; cleared: number; active: boolean };
   now: number;
   nextClient: () => FakeClient;
@@ -90,7 +92,9 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
       ["/w/b.R", "b <- 2"],
     ]),
     hasR: true,
+    withSession: true,
     roxygenNotices: 0,
+    roxygenMissing: [] as readonly string[],
     now: 1_000_000,
     logs: [] as string[],
     injector: {
@@ -141,7 +145,9 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
     },
     resolveLaunch: async () => {
       h.resolveCalls++;
-      return h.hasR ? { ok: true, command: "Rscript", args: [], env: {} } : { ok: false, reason: "no-r" };
+      return h.hasR
+        ? { ok: true, withSession: h.withSession, command: "Rscript", args: [], env: {} }
+        : { ok: false, reason: "no-r" };
     },
     createClient: () => {
       const c = h.nextClient();
@@ -154,8 +160,9 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
       return text;
     },
     injector: h.injector,
-    notifyRoxygenMissing: () => {
+    notifyRoxygenMissing: (missing) => {
       h.roxygenNotices++;
+      h.roxygenMissing = missing;
     },
     onState: (s) => h.states.push(s),
     now: () => h.now,
@@ -258,6 +265,54 @@ describe("SidecarController", () => {
       assert.equal(h.roxygenNotices, 1);
       assert.equal(h.clients.length, 3);
       assert.ok(h.clients.every((c) => c.kills >= 1));
+    });
+
+    it("roxygen2 missing: the notification names every missing package", async () => {
+      const h = harness();
+      h.nextClient = () =>
+        Object.assign(new FakeClient(), { helloResult: { ...OK_HELLO, ok: false, missing: ["roxygen2", "jsonlite"] } });
+      await h.controller.refresh();
+      assert.deepEqual(h.roxygenMissing, ["roxygen2", "jsonlite"]);
+    });
+  });
+
+  describe("foreground R session", () => {
+    it("retries a no-roxygen2 block once a session comes to the foreground", async () => {
+      const h = harness();
+      h.nextClient = () => Object.assign(new FakeClient(), { helloResult: { ...OK_HELLO, ok: false, missing: ["roxygen2"] } });
+      await h.controller.refresh();
+      assert.deepEqual(lastState(h), { tier: "base", reason: "no-roxygen2" });
+      h.nextClient = () => new FakeClient();
+      await h.controller.onForegroundSession();
+      assert.deepEqual(lastState(h), { tier: "enhanced" });
+      assert.equal(h.clients.length, 2);
+    });
+
+    it("relaunches a sidecar that started without a session, once", async () => {
+      const h = harness();
+      h.withSession = false;
+      await h.controller.refresh();
+      h.withSession = true;
+      await h.controller.onForegroundSession();
+      assert.equal(h.clients.length, 2);
+      assert.equal(h.clients[0]?.shutdowns, 1);
+      await h.controller.onForegroundSession();
+      assert.equal(h.clients.length, 2);
+    });
+
+    it("does nothing while the sidecar is blocked as crashed", async () => {
+      const h = harness();
+      h.withSession = false;
+      h.nextClient = () => Object.assign(new FakeClient(), { helloResult: new Error("boom") });
+      await h.controller.refresh();
+      for (let i = 0; i < 5; i++) {
+        mock.timers.tick(5_000);
+        await settle();
+      }
+      assert.deepEqual(lastState(h), { tier: "base", reason: "crashed" });
+      const before = h.clients.length;
+      await h.controller.onForegroundSession();
+      assert.equal(h.clients.length, before);
     });
   });
 

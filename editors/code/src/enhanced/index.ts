@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 import type { ActivateEnhanced, BaseTierApi } from "./api.ts";
 import { LibStore } from "./libStore.ts";
 import { SidecarController, type ViewState } from "./lifecycle.ts";
-import { PositronInjector } from "./positronInjector.ts";
+import { PositronInjector, rStringLiteral } from "./positronInjector.ts";
 import { createPositronBridge, tryAcquirePositronApi } from "./positronApi.ts";
 import { LaunchResolver } from "./rDiscovery.ts";
 import { SidecarClient } from "./sidecarClient.ts";
@@ -26,6 +26,8 @@ export const enhancedTestHooks = {
 };
 
 const SHOW_LOG_COMMAND = "rozone.enhanced.showLog";
+// Far below LibStore's 24 hour sweep age, so a live session's folder never looks abandoned to another window.
+const HEARTBEAT_MS = 60 * 60 * 1000;
 
 function isFile(candidate: string): boolean {
   try {
@@ -97,9 +99,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
     },
     readFile: (file) => fs.promises.readFile(file, "utf8"),
     injector,
-    notifyRoxygenMissing: () => {
-      void vscode.window.showInformationMessage("Install roxygen2 for richer docs");
-    },
+    notifyRoxygenMissing: (missing) => void offerInstall(missing),
     onState: (state) => {
       testState = state;
       const view = describeState(state);
@@ -110,6 +110,29 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   const live = controller;
   live.updateState();
   testRearmIdle = () => live.rearmIdle();
+
+  // The sidecar uses the Positron session's libraries, so installing from its console makes the packages visible to it.
+  async function offerInstall(missing: readonly string[]): Promise<void> {
+    const packages = missing.length > 0 ? missing : ["roxygen2"];
+    const code = `install.packages(c(${packages.map(rStringLiteral).join(", ")}))`;
+    const install = bridge ? "Install in R console" : "Copy install command";
+    const choice = await vscode.window.showInformationMessage(
+      `rozone: install ${packages.join(", ")} for roxygen2-exact docs and help in the R session.`,
+      install,
+      "Retry",
+    );
+    try {
+      if (choice === install && bridge) {
+        await bridge.executeInConsole(code);
+      } else if (choice === install) {
+        await vscode.env.clipboard.writeText(code);
+        return;
+      }
+      if (choice) await live.restart();
+    } catch (error) {
+      base.log.warn(`installing ${packages.join(", ")} failed: ${String(error)}`);
+    }
+  }
 
   const subscriptions: vscode.Disposable[] = [
     status,
@@ -132,9 +155,24 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
 
   void (base.ready ?? Promise.resolve()).then(() => live.refresh());
 
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   if (bridge) {
+    const touchLiveSessions = async () => {
+      const now = Date.now();
+      for (const id of await bridge.activeSessionIds()) await store.touch(id, now);
+    };
+    subscriptions.push(
+      bridge.onDidChangeForegroundSession((session) => {
+        if (session) void live.onForegroundSession();
+      }),
+    );
+    heartbeat = setInterval(
+      () => void touchLiveSessions().catch((error: unknown) => base.log.warn(`library heartbeat failed: ${String(error)}`)),
+      HEARTBEAT_MS,
+    );
     void (base.ready ?? Promise.resolve())
       .then(async () => {
+        await touchLiveSessions();
         const now = Date.now();
         await store.sweep(await bridge.activeSessionIds(), now);
         await store.cleanLegacy(context.globalStorageUri.fsPath, now);
@@ -143,6 +181,7 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
   }
 
   return new vscode.Disposable(() => {
+    clearInterval(heartbeat);
     live.dispose();
     injector?.dispose();
     for (const s of subscriptions) s.dispose();

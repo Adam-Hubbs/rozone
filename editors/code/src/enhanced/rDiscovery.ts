@@ -1,5 +1,5 @@
 import * as nodePath from "node:path";
-import type { PositronBridge } from "./positronBridge.ts";
+import type { Disposable, PositronBridge, RSession } from "./positronBridge.ts";
 
 export type Platform = NodeJS.Platform;
 
@@ -105,7 +105,36 @@ export function buildLaunch(input: LaunchInput): LaunchSpec {
   return { command: input.rscript, args, env };
 }
 
-export type LaunchResult = ({ ok: true } & LaunchSpec) | { ok: false; reason: "no-r" };
+/** `withSession`: the launch used a Positron R session's R and libraries. */
+export type LaunchResult = ({ ok: true; withSession: boolean } & LaunchSpec) | { ok: false; reason: "no-r" };
+
+export const SESSION_WAIT_MS = 15_000;
+
+/** The foreground R session, waiting up to `timeoutMs` for one to appear (Positron restores sessions after activation). */
+export function waitForForegroundSession(bridge: PositronBridge, timeoutMs: number): Promise<RSession | undefined> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let subscription: Disposable | undefined;
+    const finish = (session: RSession | undefined) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription?.dispose();
+      resolve(session);
+    };
+    subscription = bridge.onDidChangeForegroundSession((session) => {
+      if (session) finish(session);
+    });
+    timer = setTimeout(() => finish(undefined), timeoutMs);
+    bridge.foregroundSession().then(
+      (session) => {
+        if (session) finish(session);
+      },
+      () => {},
+    );
+  });
+}
 
 export interface LaunchResolverDeps {
   platform: Platform;
@@ -116,6 +145,7 @@ export interface LaunchResolverDeps {
   sidecarScript: string;
   /** Present only when running inside Positron. */
   positron?: PositronBridge | undefined;
+  sessionWaitMs?: number;
   log: { info(message: string): void; warn(message: string): void };
 }
 
@@ -134,7 +164,8 @@ export class LaunchResolver {
 
   async resolve(): Promise<LaunchResult> {
     const d = this.#deps;
-    const session = await d.positron?.foregroundSession();
+    const session = d.positron ? await waitForForegroundSession(d.positron, d.sessionWaitMs ?? SESSION_WAIT_MS) : undefined;
+    if (d.positron && !session) d.log.info("no R session in the foreground; starting the sidecar without its libraries");
     const rscript = discoverRscript({
       platform: d.platform,
       isFile: d.isFile,
@@ -146,6 +177,7 @@ export class LaunchResolver {
     const libPaths = d.positron && session ? await this.#readLibPaths(d.positron, session.id) : [];
     return {
       ok: true,
+      withSession: session !== undefined,
       ...buildLaunch({
         rscript,
         sidecarScript: d.sidecarScript,

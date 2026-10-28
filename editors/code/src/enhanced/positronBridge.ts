@@ -32,8 +32,10 @@ export type EvalOutcome =
 
 export interface PositronBridge {
   foregroundSession(): Promise<RSession | undefined>;
-  /** Runs code in a session without queueing behind other work (RuntimeBusyBehavior.Reject). */
+  /** Runs code in a session without queueing behind other work (RuntimeBusyBehavior.Reject); an error after a timeout. */
   evaluate(sessionId: string, code: string): Promise<EvalOutcome>;
+  /** Runs code visibly in the R console, as if the user typed it; resolves when it finishes. */
+  executeInConsole(code: string): Promise<void>;
   onDidChangeForegroundSession(listener: (session: RSession | undefined) => void): Disposable;
   /** State changes of the foreground session only. */
   onDidChangeSessionState(listener: (event: { sessionId: string; state: SessionState }) => void): Disposable;

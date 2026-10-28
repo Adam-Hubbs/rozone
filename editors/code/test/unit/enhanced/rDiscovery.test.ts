@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { EvalOutcome, PositronBridge } from "../../../src/enhanced/positronBridge.ts";
+import type { EvalOutcome, PositronBridge, RSession } from "../../../src/enhanced/positronBridge.ts";
 import {
   buildLaunch,
   discoverRscript,
@@ -8,6 +8,7 @@ import {
   LaunchResolver,
   parseLibPaths,
   rscriptNextTo,
+  waitForForegroundSession,
 } from "../../../src/enhanced/rDiscovery.ts";
 
 const filesystem = (...paths: string[]) => {
@@ -134,10 +135,31 @@ describe("LaunchResolver", () => {
       },
       onDidChangeForegroundSession: () => ({ dispose() {} }),
       onDidChangeSessionState: () => ({ dispose() {} }),
+      executeInConsole: async () => {},
       activeSessionIds: async () => ["s1"],
       onDidEndSession: () => ({ dispose() {} }),
     };
     return { bridge, evaluated };
+  }
+
+  /** A Positron with no foreground session yet; `appear()` brings one up. */
+  function lateBridge() {
+    const { bridge } = fakeBridge({ status: "ok", value: ["/l1"] });
+    let current: RSession | undefined;
+    const listeners = new Set<(s: RSession | undefined) => void>();
+    const late: PositronBridge = {
+      ...bridge,
+      foregroundSession: async () => current,
+      onDidChangeForegroundSession: (l) => {
+        listeners.add(l);
+        return { dispose: () => listeners.delete(l) };
+      },
+    };
+    const appear = () => {
+      current = { id: "s1", runtimePath: "/pos/bin/R" };
+      for (const l of listeners) l(current);
+    };
+    return { bridge: late, appear, listeners };
   }
 
   const deps = (positron?: PositronBridge) => ({
@@ -186,5 +208,42 @@ describe("LaunchResolver", () => {
   it("reports no-r when nothing is found", async () => {
     const resolver = new LaunchResolver({ ...deps(), isFile: filesystem() });
     assert.deepEqual(await resolver.resolve(), { ok: false, reason: "no-r" });
+  });
+
+  it("Positron: waits for a session that comes up after activation and uses its libraries", async () => {
+    const { bridge, appear } = lateBridge();
+    const pending = new LaunchResolver({ ...deps(bridge), sessionWaitMs: 5_000 }).resolve();
+    await new Promise((r) => setImmediate(r));
+    appear();
+    const result = await pending;
+    assert.ok(result.ok);
+    assert.equal(result.withSession, true);
+    assert.equal(result.command, "/pos/bin/Rscript");
+    assert.equal(result.env["R_LIBS"], "/l1");
+  });
+
+  it("Positron with no session at all: gives up after the wait and launches without one", async () => {
+    const { bridge, listeners } = lateBridge();
+    const result = await new LaunchResolver({ ...deps(bridge), sessionWaitMs: 10 }).resolve();
+    assert.ok(result.ok);
+    assert.equal(result.withSession, false);
+    assert.equal(result.command, "/usr/bin/Rscript");
+    assert.equal(listeners.size, 0);
+  });
+});
+
+describe("waitForForegroundSession", () => {
+  it("resolves immediately with an existing session and unsubscribes", async () => {
+    let subscribed = 0;
+    let disposed = 0;
+    const bridge = {
+      foregroundSession: async () => ({ id: "s1", runtimePath: "/r" }),
+      onDidChangeForegroundSession: () => {
+        subscribed++;
+        return { dispose: () => void disposed++ };
+      },
+    } as unknown as PositronBridge;
+    assert.deepEqual(await waitForForegroundSession(bridge, 60_000), { id: "s1", runtimePath: "/r" });
+    assert.equal(disposed, subscribed);
   });
 });

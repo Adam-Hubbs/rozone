@@ -38,7 +38,7 @@ export interface ControllerDeps {
   createClient(spec: LaunchSpec): SidecarLike;
   readFile(path: string): Promise<string>;
   injector?: InjectorLike | undefined;
-  notifyRoxygenMissing(): void;
+  notifyRoxygenMissing(missing: readonly string[]): void;
   onState(state: ViewState): void;
   now?(): number;
   debounceMs?: number;
@@ -73,6 +73,7 @@ export class SidecarController {
   #dirty = false;
   #disposed = false;
   #roxygenNotified = false;
+  #launchedWithSession = false;
   #lastState = "";
 
   constructor(deps: ControllerDeps) {
@@ -122,6 +123,19 @@ export class SidecarController {
       this.#debounceTimer = undefined;
       void this.#runBuild();
     }, this.#deps.debounceMs ?? 300);
+  }
+
+  /**
+   * A Positron R session came to the foreground. Retry when R or roxygen2 was not found, or when the
+   * running sidecar was launched without a session's R and libraries (e.g. renv) because none existed yet.
+   */
+  async onForegroundSession(): Promise<void> {
+    if (this.#disposed || this.#gate() || this.#blocked === "crashed") return;
+    const blockedOnSetup = this.#blocked === "no-r" || this.#blocked === "no-roxygen2";
+    const withoutSession = this.#client !== undefined && !this.#launchedWithSession;
+    if (!blockedOnSetup && !withoutSession) return;
+    this.#deps.log.info("R session available; relaunching the sidecar with its R and libraries");
+    await this.reconfigure();
   }
 
   /** Idle timeout setting changed. */
@@ -240,12 +254,13 @@ export class SidecarController {
       this.#block("no-roxygen2");
       if (!this.#roxygenNotified) {
         this.#roxygenNotified = true;
-        this.#deps.notifyRoxygenMissing();
+        this.#deps.notifyRoxygenMissing(hello.missing);
       }
       return undefined;
     }
     log.info(`sidecar ready (R ${hello.r_version ?? "?"}, roxygen2 ${hello.packages?.["roxygen2"] ?? "?"})`);
     this.#client = client;
+    this.#launchedWithSession = launch.withSession;
     client.onExit((info) => this.#onExit(client, info));
     this.#enhancedOn = true;
     this.updateState();
