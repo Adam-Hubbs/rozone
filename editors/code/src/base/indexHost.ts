@@ -1,5 +1,5 @@
 import type { RequestMessage, ResponseMessage } from "./protocol.ts";
-import type { CoreHover, CoreSignatureHelp, FunctionSummary, LogFn } from "./types.ts";
+import type { CoreHover, CoreSignatureHelp, FileFingerprint, FunctionSummary, LogFn } from "./types.ts";
 
 export interface IndexLike {
   updateFile(path: string, text: string): void;
@@ -10,6 +10,7 @@ export interface IndexLike {
   signatureHelp(path: string, offset: number): CoreSignatureHelp | undefined | null;
   documentation(name: string, fromPath?: string): string | undefined | null;
   documentedFunctions(): FunctionSummary[];
+  fingerprints(): FileFingerprint[];
   free(): void;
 }
 
@@ -115,6 +116,10 @@ export function createIndexHost(wasm: WasmModule, log: LogFn): IndexHost {
         return index.documentedFunctions();
       case "contentHash":
         return wasm.contentHash(request.params.text);
+      case "fingerprints":
+        return index.fingerprints();
+      case "texts":
+        return request.params.paths.map((path) => texts.get(path) ?? null);
     }
   };
 

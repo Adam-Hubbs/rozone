@@ -1,5 +1,5 @@
 import { isResponse, type Methods, type MethodName, type RequestMessage, type WorkerMessage } from "./protocol.ts";
-import type { CoreHover, CoreSignatureHelp, FileText, FunctionSummary, LogFn } from "./types.ts";
+import type { CoreHover, CoreSignatureHelp, FileFingerprint, FileText, FunctionSummary, LogFn } from "./types.ts";
 
 export interface WorkerLike {
   postMessage(message: unknown): void;
@@ -10,6 +10,8 @@ export interface WorkerLike {
 export interface IndexClientOptions {
   createWorker(): WorkerLike;
   log: LogFn;
+  /** A crashed worker came back empty; resend every file. The manifest is replayed by the client. */
+  onRestart?(): void;
   requestTimeoutMs?: number;
   maxRestarts?: number;
   restartWindowMs?: number;
@@ -37,6 +39,8 @@ export interface IndexClient {
   documentation(name: string, fromPath?: string): Promise<string | undefined>;
   documentedFunctions(): Promise<FunctionSummary[]>;
   contentHash(text: string): Promise<string>;
+  fingerprints(): Promise<FileFingerprint[]>;
+  texts(paths: string[]): Promise<(string | null)[]>;
   dispose(): Promise<void>;
 }
 
@@ -46,8 +50,6 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
-const REPLAY_CHUNK = 200;
-
 export function createIndexClient(options: IndexClientOptions): IndexClient {
   const { log } = options;
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
@@ -55,7 +57,6 @@ export function createIndexClient(options: IndexClientOptions): IndexClient {
   const restartWindowMs = options.restartWindowMs ?? 60_000;
 
   const pending = new Map<number, Pending>();
-  const texts = new Map<string, string>();
   let manifest: string | undefined;
   let state: ClientState = "running";
   let nextId = 1;
@@ -72,12 +73,10 @@ export function createIndexClient(options: IndexClientOptions): IndexClient {
 
   const post = (message: RequestMessage) => worker.postMessage(message);
 
+  // File texts are not kept here (the worker and the editor already hold them), so the owner resends them.
   const replay = () => {
-    const files = [...texts].map(([path, text]) => ({ path, text }));
-    for (let i = 0; i < files.length; i += REPLAY_CHUNK) {
-      post({ id: nextId++, method: "updateFiles", params: { files: files.slice(i, i + REPLAY_CHUNK) } });
-    }
     if (manifest !== undefined) post({ id: nextId++, method: "loadManifest", params: { json: manifest } });
+    options.onRestart?.();
   };
 
   const fail = (reason: string) => {
@@ -99,7 +98,7 @@ export function createIndexClient(options: IndexClientOptions): IndexClient {
     }
     restarts.push(now);
     start();
-    log("info", `index worker restarted; replaying ${texts.size} files`);
+    log("info", "index worker restarted; resending files");
     replay();
   };
 
@@ -147,14 +146,8 @@ export function createIndexClient(options: IndexClientOptions): IndexClient {
 
   return {
     state: () => state,
-    updateFiles(files) {
-      for (const { path, text } of files) texts.set(path, text);
-      return request("updateFiles", { files });
-    },
-    removeFiles(paths) {
-      for (const path of paths) texts.delete(path);
-      return request("removeFiles", { paths });
-    },
+    updateFiles: (files) => request("updateFiles", { files }),
+    removeFiles: (paths) => request("removeFiles", { paths }),
     async loadManifest(json) {
       await request("loadManifest", { json });
       manifest = json;
@@ -168,6 +161,8 @@ export function createIndexClient(options: IndexClientOptions): IndexClient {
     documentation: (name, fromPath) => request("documentation", { name, fromPath }),
     documentedFunctions: () => request("documentedFunctions", {}),
     contentHash: (text) => request("contentHash", { text }),
+    fingerprints: () => request("fingerprints", {}),
+    texts: (paths) => request("texts", { paths }),
     async dispose() {
       if (state === "disposed") return;
       state = "disposed";

@@ -3,21 +3,23 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { createIndexClient, type IndexClient } from "../../../src/base/indexClient.ts";
-import type { LogLevel } from "../../../src/base/types.ts";
+import type { FileText, LogLevel } from "../../../src/base/types.ts";
 
 const workerEntry = new URL("../../../src/base/worker.ts", import.meta.url);
 const goodWasm = fileURLToPath(new URL("../../helpers/fakeWasmModule.ts", import.meta.url));
 
-function start(wasmEntry: string) {
+/** `files` stands in for discovery: it is resent whenever the worker restarts. */
+function start(wasmEntry: string, files: FileText[] = []) {
   const logs: [LogLevel, string][] = [];
   const workers: Worker[] = [];
-  const client = createIndexClient({
+  const client: IndexClient = createIndexClient({
     createWorker: () => {
       const worker = new Worker(workerEntry, { workerData: { wasmEntry } });
       workers.push(worker);
       return worker;
     },
     log: (level, message) => logs.push([level, message]),
+    onRestart: () => void client.updateFiles(files).catch(() => {}),
     requestTimeoutMs: 5000,
   });
   return { client, logs, workers };
@@ -52,10 +54,11 @@ test("a panic inside the worker rejects that request and the worker keeps servin
   }
 });
 
-test("when the worker thread is killed, the client restarts it and replays texts", async () => {
-  const { client, workers } = start(goodWasm);
+test("when the worker thread is killed, the client restarts it and the owner resends texts", async () => {
+  const files = [{ path: "/keep.R", text: "keep" }];
+  const { client, workers } = start(goodWasm, files);
   try {
-    await client.updateFiles([{ path: "/keep.R", text: "keep" }]);
+    await client.updateFiles(files);
     await workers[0]?.terminate();
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(workers.length, 2);
@@ -66,9 +69,10 @@ test("when the worker thread is killed, the client restarts it and replays texts
 });
 
 test("a file that kills the thread on every replay ends in a failed state, not an endless loop", async () => {
-  const { client, workers } = start(goodWasm);
+  const files = [{ path: "/die.R", text: "EXIT" }];
+  const { client, workers } = start(goodWasm, files);
   try {
-    await assert.rejects(client.updateFiles([{ path: "/die.R", text: "EXIT" }]));
+    await assert.rejects(client.updateFiles(files));
     for (let i = 0; i < 50 && client.state() === "running"; i++) await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(client.state(), "failed");
     assert.ok(workers.length <= 6);

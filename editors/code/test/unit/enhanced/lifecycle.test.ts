@@ -69,6 +69,7 @@ interface Harness {
   withSession: boolean;
   roxygenNotices: number;
   roxygenMissing: readonly string[];
+  fingerprintCalls: number;
   injector: InjectorLike & { injected: { sessionId: string; libDir: string; topics: readonly string[] }[]; target: { sessionId: string; libRoot: string } | undefined; cleared: number; active: boolean };
   now: number;
   nextClient: () => FakeClient;
@@ -95,6 +96,7 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
     withSession: true,
     roxygenNotices: 0,
     roxygenMissing: [] as readonly string[],
+    fingerprintCalls: 0,
     now: 1_000_000,
     logs: [] as string[],
     injector: {
@@ -123,8 +125,12 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
       loadManifest: async (json) => {
         h.manifests.push(json);
       },
-      contentHash: async (text) => `hash(${text})`,
       indexedFiles: () => h.files,
+      fingerprints: async () => {
+        h.fingerprintCalls++;
+        return [...h.contents].map(([path, text]) => ({ path, contentHash: `hash(${text})`, docHash: `doc(${text})` }));
+      },
+      texts: async (paths) => paths.map((p) => h.contents.get(p) ?? null),
     },
     log: {
       info: (m) => h.logs.push(m),
@@ -154,11 +160,6 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
       h.clients.push(c);
       return c;
     },
-    readFile: async (p) => {
-      const text = h.contents.get(p);
-      if (text === undefined) throw new Error("ENOENT");
-      return text;
-    },
     injector: h.injector,
     notifyRoxygenMissing: (missing) => {
       h.roxygenNotices++;
@@ -172,6 +173,10 @@ function harness(overrides: Partial<ControllerDeps> = {}): Harness {
 }
 
 const lastState = (h: Harness) => h.states.at(-1);
+
+let edits = 0;
+/** Changes a.R's text, and with it its doc hash, so the next build has something to do. */
+const edit = (h: Harness) => void h.contents.set("/w/a.R", `a <- ${100 + ++edits}`);
 
 describe("SidecarController", () => {
   beforeEach(() => mock.timers.enable({ apis: ["setTimeout"] }));
@@ -324,8 +329,8 @@ describe("SidecarController", () => {
       assert.equal(request?.method, "build");
       assert.deepEqual(request?.params, {
         files: [
-          { path: "/w/a.R", hash: "hash(a <- 1)", text: "a <- 1" },
-          { path: "/w/b.R", hash: "hash(b <- 2)", text: "b <- 2" },
+          { path: "/w/a.R", hash: "doc(a <- 1)", text: "a <- 1" },
+          { path: "/w/b.R", hash: "doc(b <- 2)", text: "b <- 2" },
         ],
         install: false,
       });
@@ -333,12 +338,68 @@ describe("SidecarController", () => {
       assert.equal(JSON.parse(h.manifests[0] ?? "{}").version, 1);
     });
 
-    it("skips unreadable files but keeps building", async () => {
+    it("builds only files that are both listed by discovery and held by the index", async () => {
       const h = harness();
       h.files = ["/w/a.R", "/w/gone.R"];
       await h.controller.refresh();
       assert.deepEqual(h.clients[0]?.requests[0]?.params.files.map((f: any) => f.path), ["/w/a.R"]);
-      assert.ok(h.logs.some((l) => l.includes("/w/gone.R")));
+    });
+
+    it("a save with unchanged doc hashes never reaches R, even to restart an idle sidecar", async () => {
+      const h = harness();
+      await h.controller.refresh();
+      h.controller.requestBuild();
+      mock.timers.tick(300);
+      await settle();
+      assert.equal(h.clients[0]?.requests.length, 1);
+      mock.timers.tick(10 * 60_000);
+      await settle();
+      assert.equal(h.controller.running, false);
+      h.controller.requestBuild();
+      mock.timers.tick(300);
+      await settle();
+      assert.equal(h.clients.length, 1);
+      assert.ok(h.fingerprintCalls >= 3);
+    });
+
+    it("sends text only for files whose doc hash the running sidecar has not built", async () => {
+      const h = harness();
+      await h.controller.refresh();
+      edit(h);
+      h.controller.requestBuild();
+      mock.timers.tick(300);
+      await settle();
+      const files = h.clients[0]?.requests[1]?.params.files;
+      assert.deepEqual(files, [
+        { path: "/w/a.R", hash: `doc(a <- ${100 + edits})`, text: `a <- ${100 + edits}` },
+        { path: "/w/b.R", hash: "doc(b <- 2)" },
+      ]);
+    });
+
+    it("a new sidecar process gets every text again", async () => {
+      const h = harness();
+      await h.controller.refresh();
+      mock.timers.tick(10 * 60_000);
+      await settle();
+      edit(h);
+      h.controller.requestBuild();
+      mock.timers.tick(300);
+      await settle();
+      assert.equal(h.clients.length, 2);
+      assert.ok(h.clients[1]?.requests[0]?.params.files.every((f: any) => typeof f.text === "string"));
+    });
+
+    it("a failed install is retried on the next save even when docs are unchanged", async () => {
+      const h = harness();
+      h.positron = true;
+      const client = new FakeClient();
+      client.buildImpl = async () => ({ manifest: { version: 1, files: [] }, lib_dir: null, topics: [], errors: [] });
+      h.nextClient = () => client;
+      await h.controller.refresh();
+      h.controller.requestBuild();
+      mock.timers.tick(300);
+      await settle();
+      assert.equal(client.requests.length, 2);
     });
 
     it("coalesces rapid saves into one build 300 ms after the last save", async () => {
@@ -346,6 +407,7 @@ describe("SidecarController", () => {
       await h.controller.refresh();
       const client = h.clients[0];
       assert.equal(client?.requests.length, 1);
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(200);
       h.controller.requestBuild();
@@ -369,7 +431,7 @@ describe("SidecarController", () => {
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
-      assert.equal(h.clients[0]?.requests[1]?.params.files[0].hash, "hash(a <- 99)");
+      assert.equal(h.clients[0]?.requests[1]?.params.files[0].hash, "doc(a <- 99)");
     });
 
     it("a save during a running build triggers exactly one more build after it", async () => {
@@ -379,10 +441,12 @@ describe("SidecarController", () => {
       let release: () => void = () => {};
       const original = client.buildImpl;
       client.buildImpl = (params) => new Promise((resolve) => (release = () => resolve(original(params))));
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
       assert.equal(client.requests.length, 2);
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       h.controller.requestBuild();
@@ -402,6 +466,7 @@ describe("SidecarController", () => {
       client.buildImpl = async () => {
         throw new SidecarError("remote", "kaboom");
       };
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
@@ -427,8 +492,9 @@ describe("SidecarController", () => {
           loadManifest: async () => {
             throw new Error("bad schema");
           },
-          contentHash: async (t) => t,
           indexedFiles: () => ["/w/a.R"],
+          fingerprints: async () => [{ path: "/w/a.R", contentHash: "c", docHash: "d" }],
+          texts: async (paths) => paths.map(() => "a <- 1"),
         },
       });
       await h.controller.refresh();
@@ -443,6 +509,7 @@ describe("SidecarController", () => {
       client.buildImpl = async () => {
         throw new SidecarError("timeout", "build timed out");
       };
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
@@ -468,6 +535,7 @@ describe("SidecarController", () => {
       assert.deepEqual(lastState(h), { tier: "enhanced" });
       assert.equal(h.clients.length, 1);
 
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
@@ -478,6 +546,7 @@ describe("SidecarController", () => {
     it("an intentional idle stop does not count as a crash", async () => {
       const h = harness();
       for (let i = 0; i < 5; i++) {
+        edit(h);
         h.controller.requestBuild();
         if (i === 0) await h.controller.refresh();
         mock.timers.tick(300);
@@ -492,6 +561,7 @@ describe("SidecarController", () => {
       const h = harness();
       await h.controller.refresh();
       mock.timers.tick(9 * 60_000);
+      edit(h);
       h.controller.requestBuild();
       mock.timers.tick(300);
       await settle();
@@ -516,6 +586,7 @@ describe("SidecarController", () => {
 
   describe("crash handling", () => {
     async function crashAndRestart(h: Harness, delayMs: number) {
+      edit(h);
       h.clients.at(-1)?.crash();
       await settle();
       mock.timers.tick(delayMs);
@@ -527,6 +598,7 @@ describe("SidecarController", () => {
       await h.controller.refresh();
       assert.equal(h.clients.length, 1);
 
+      edit(h);
       h.clients[0]?.crash();
       await settle();
       mock.timers.tick(999);
@@ -538,6 +610,7 @@ describe("SidecarController", () => {
       assert.equal(h.clients[1]?.requests[0]?.method, "build", "restart rebuilds");
 
       h.now += 10_000;
+      edit(h);
       h.clients[1]?.crash();
       await settle();
       mock.timers.tick(1999);

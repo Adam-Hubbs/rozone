@@ -1,6 +1,7 @@
 // Seam between the base tier (always on) and the enhanced tier (trusted only).
 // Owned jointly: change only with a matching edit on both sides.
 import type * as vscode from "vscode";
+import type { FileFingerprint } from "../base/types.ts";
 
 export interface BaseTierApi {
   /** Push a sidecar manifest (docs/contracts.md §3) into the WASM index. */
@@ -8,6 +9,10 @@ export interface BaseTierApi {
   clearManifest(): Promise<void>;
   /** FNV-1a hash from the WASM module (docs/contracts.md §0). */
   contentHash(text: string): Promise<string>;
+  /** Content and doc hashes of every file in the index, in one round trip. */
+  fingerprints(): Promise<FileFingerprint[]>;
+  /** The indexed (live) text of each path; `null` for paths no longer indexed. */
+  texts(paths: string[]): Promise<(string | null)[]>;
   /** fsPaths of every R file currently indexed (workspace files, not untitled). */
   indexedFiles(): readonly string[];
   /** Topic names loaded into the Positron session; hover skips call sites for these. */

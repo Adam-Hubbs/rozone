@@ -24,11 +24,14 @@ export function startBaseTier(context: vscode.ExtensionContext, log: vscode.LogO
   const dist = path.join(context.extensionPath, "dist");
   const workerData: WorkerData = { wasmEntry: path.join(dist, "wasm", "rozone_wasm.js") };
 
+  let resync: (() => void) | undefined;
   const client = createIndexClient({
     createWorker: () => new Worker(path.join(dist, "worker.cjs"), { workerData }),
     log: (level, message) => log[level](message),
+    onRestart: () => resync?.(),
   });
   const discovery = createDiscovery(client, log);
+  resync = () => void discovery.resync();
   const docPreview = createDocPreview(client, discovery, log);
 
   let injected: ReadonlySet<string> = new Set();
@@ -47,6 +50,8 @@ export function startBaseTier(context: vscode.ExtensionContext, log: vscode.LogO
     loadManifest: (json) => client.loadManifest(json),
     clearManifest: () => client.clearManifest(),
     contentHash: (text) => client.contentHash(text),
+    fingerprints: () => client.fingerprints(),
+    texts: (paths) => client.texts(paths),
     indexedFiles: () => discovery.indexedFiles(),
     setInjectedTopics: (names) => {
       injected = new Set(names);

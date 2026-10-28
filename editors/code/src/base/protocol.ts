@@ -1,4 +1,4 @@
-import type { CoreHover, CoreSignatureHelp, FileText, FunctionSummary, LogLevel } from "./types.ts";
+import type { CoreHover, CoreSignatureHelp, FileFingerprint, FileText, FunctionSummary, LogLevel } from "./types.ts";
 
 export interface Methods {
   updateFiles: { params: { files: FileText[] }; result: void };
@@ -10,6 +10,9 @@ export interface Methods {
   documentation: { params: { name: string; fromPath?: string }; result: string | undefined };
   documentedFunctions: { params: Record<string, never>; result: FunctionSummary[] };
   contentHash: { params: { text: string }; result: string };
+  fingerprints: { params: Record<string, never>; result: FileFingerprint[] };
+  /** The indexed text of each path, `null` for paths the index doesn't hold. */
+  texts: { params: { paths: string[] }; result: (string | null)[] };
 }
 
 export type MethodName = keyof Methods;

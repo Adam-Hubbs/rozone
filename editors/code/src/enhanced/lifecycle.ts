@@ -1,3 +1,4 @@
+import type { FileFingerprint } from "../base/types.ts";
 import type { TierState } from "./api.ts";
 import type { LaunchResult, LaunchSpec } from "./rDiscovery.ts";
 import { SidecarError } from "./sidecarClient.ts";
@@ -16,8 +17,15 @@ export interface SidecarLike {
 
 export interface BaseLike {
   loadManifest(json: string): Promise<void>;
-  contentHash(text: string): Promise<string>;
   indexedFiles(): readonly string[];
+  fingerprints(): Promise<FileFingerprint[]>;
+  texts(paths: string[]): Promise<(string | null)[]>;
+}
+
+interface BuildFile {
+  path: string;
+  hash: string;
+  text?: string;
 }
 
 export interface InjectorLike {
@@ -36,7 +44,6 @@ export interface ControllerDeps {
   /** Forget cached launch data (library paths) so the next start re-reads it. */
   resetLaunch?(): void;
   createClient(spec: LaunchSpec): SidecarLike;
-  readFile(path: string): Promise<string>;
   injector?: InjectorLike | undefined;
   notifyRoxygenMissing(missing: readonly string[]): void;
   onState(state: ViewState): void;
@@ -74,6 +81,10 @@ export class SidecarController {
   #disposed = false;
   #roxygenNotified = false;
   #launchedWithSession = false;
+  /** Doc hashes and install target of the last successful build; an identical request is skipped. */
+  #builtKey: string | undefined;
+  #sidecarOf: SidecarLike | undefined;
+  #sidecarHas = new Map<string, string>();
   #lastState = "";
 
   constructor(deps: ControllerDeps) {
@@ -187,6 +198,7 @@ export class SidecarController {
 
   async #stopAll(): Promise<void> {
     this.#epoch++;
+    this.#builtKey = undefined;
     clearTimeout(this.#debounceTimer);
     clearTimeout(this.#restartTimer);
     this.#enhancedOn = false;
@@ -314,13 +326,22 @@ export class SidecarController {
 
   async #buildOnce(): Promise<void> {
     if (this.#disposed || this.#gate() || this.#blocked) return;
-    const client = await this.#ensureClient();
-    if (!client || this.#disposed) return;
     const { log, env, config } = this.#deps;
-    const files = await this.#collectFiles();
+    // An idle shutdown must not land in the middle of the build that is starting.
+    clearTimeout(this.#idleTimer);
+    const prints = await this.#fingerprints();
     const wantsInstall = env.isPositron && config.helpInjection() && this.#deps.injector !== undefined;
     const target = wantsInstall ? await this.#deps.injector?.buildTarget() : undefined;
     if (this.#disposed) return;
+    const key = [target?.libRoot ?? "", ...prints.map((p) => `${p.path}\0${p.docHash}`)].join("\n");
+    if (key === this.#builtKey) {
+      log.info("docs unchanged since the last build; R not needed");
+      if (this.#client) this.#armIdle();
+      return;
+    }
+    const client = await this.#ensureClient();
+    if (!client || this.#disposed) return;
+    const files = await this.#filesFor(client, prints);
     try {
       const result = await client.request<BuildResult>(
         "build",
@@ -328,8 +349,12 @@ export class SidecarController {
         this.#deps.buildTimeoutMs ?? 120_000,
       );
       this.#armIdle();
+      // The sidecar keeps a cache entry for exactly the files listed in the last build.
+      this.#sidecarHas = new Map(files.map((f) => [f.path, f.hash]));
+      this.#builtKey = target && result.lib_dir === null ? undefined : key;
       await this.#applyResult(result, target?.sessionId);
     } catch (error) {
+      this.#builtKey = undefined;
       if (error instanceof SidecarError && error.code === "timeout") {
         log.error("sidecar build timed out; restarting it");
         if (this.#client === client) {
@@ -343,20 +368,25 @@ export class SidecarController {
     }
   }
 
-  async #collectFiles(): Promise<{ path: string; hash: string; text: string }[]> {
-    const { base, log } = this.#deps;
-    const entries = await Promise.all(
-      base.indexedFiles().map(async (path) => {
-        try {
-          const text = await this.#deps.readFile(path);
-          return { path, hash: await base.contentHash(text), text };
-        } catch (error) {
-          log.warn(`skipping unreadable file ${path}: ${String(error)}`);
-          return undefined;
-        }
-      }),
-    );
-    return entries.filter((e) => e !== undefined);
+  async #fingerprints(): Promise<FileFingerprint[]> {
+    const indexed = new Set(this.#deps.base.indexedFiles());
+    return (await this.#deps.base.fingerprints()).filter((p) => indexed.has(p.path));
+  }
+
+  /** Text is sent only for files whose doc hash this sidecar process has not built yet. */
+  async #filesFor(client: SidecarLike, prints: readonly FileFingerprint[]): Promise<BuildFile[]> {
+    if (client !== this.#sidecarOf) {
+      this.#sidecarOf = client;
+      this.#sidecarHas = new Map();
+    }
+    const stale = prints.filter((p) => this.#sidecarHas.get(p.path) !== p.docHash);
+    const texts = await this.#deps.base.texts(stale.map((p) => p.path));
+    const fresh = new Map(stale.map((p, i) => [p.path, texts[i] ?? null]));
+    return prints.flatMap((p): BuildFile[] => {
+      if (!fresh.has(p.path)) return [{ path: p.path, hash: p.docHash }];
+      const text = fresh.get(p.path);
+      return typeof text === "string" ? [{ path: p.path, hash: p.docHash, text }] : [];
+    });
   }
 
   async #applyResult(result: BuildResult, sessionId: string | undefined): Promise<void> {

@@ -63,6 +63,12 @@ export class FakeIndex implements IndexLike {
     return [...this.files.keys()].map((path) => ({ name: "f", path, range: { start: 0, end: 1 }, title: null }));
   }
 
+  fingerprints() {
+    return [...this.files]
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([path, text]) => ({ path, contentHash: `hash:${text.length}`, docHash: `doc:${text.length}` }));
+  }
+
   free() {
     this.freed = true;
     this.behavior.freed++;

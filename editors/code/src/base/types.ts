@@ -36,6 +36,13 @@ export interface FunctionSummary {
   title: string | null;
 }
 
+/** `docHash` changes only when something that can change roxygen2's output for the file changes (contracts §0). */
+export interface FileFingerprint {
+  path: string;
+  contentHash: string;
+  docHash: string;
+}
+
 export interface FileText {
   path: string;
   text: string;

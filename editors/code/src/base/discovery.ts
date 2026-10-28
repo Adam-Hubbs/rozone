@@ -20,6 +20,8 @@ export interface Discovery extends vscode.Disposable {
   /** Push every coalesced edit now: a query may resolve into another open document. */
   flushPending(): void;
   rescan(): Promise<void>;
+  /** Resend every file, e.g. after the index worker restarted empty. */
+  resync(): Promise<void>;
 }
 
 export function createDiscovery(client: IndexClient, log: vscode.LogOutputChannel): Discovery {
@@ -235,6 +237,11 @@ export function createDiscovery(client: IndexClient, log: vscode.LogOutputChanne
     isIndexed: (path) => indexed.has(path),
     flushPending: () => coalescer.flushAll(),
     rescan,
+    resync() {
+      vscode.workspace.textDocuments.forEach(pushLive);
+      coalescer.flushAll();
+      return rescan();
+    },
     dispose() {
       coalescer.dispose();
       vscode.Disposable.from(...disposables).dispose();

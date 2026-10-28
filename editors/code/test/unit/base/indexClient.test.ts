@@ -80,14 +80,10 @@ test("worker log events are forwarded with a prefix", async () => {
   assert.ok(logs.some(([level, message]) => level === "error" && message.startsWith("[worker] wasm panic in hover")));
 });
 
-test("when the worker dies it restarts and replays the last known texts and manifest", async () => {
-  const { client, workers, current, logs } = setup();
-  await client.updateFiles([
-    { path: "/a.R", text: "old" },
-    { path: "/b.R", text: "b" },
-  ]);
+test("when the worker dies it restarts, replays the manifest and asks the owner to resend files", async () => {
+  let restarts = 0;
+  const { client, workers, current, logs } = setup({ onRestart: () => restarts++ });
   await client.updateFiles([{ path: "/a.R", text: "new" }]);
-  await client.removeFiles(["/b.R"]);
   const manifest = JSON.stringify({ version: 1, files: [] });
   await client.loadManifest(manifest);
 
@@ -96,17 +92,39 @@ test("when the worker dies it restarts and replays the last known texts and mani
 
   assert.equal(workers.length, 2);
   assert.equal(client.state(), "running");
+  assert.equal(restarts, 1);
   const replacement = workers[1] as FakeWorker;
-  const hover = await client.hover("/a.R", 1);
-  assert.equal(hover?.markdown, "hover@1");
-  const index = replacement.behavior.instances[0];
-  assert.deepEqual([...(index?.files ?? [])], [["/a.R", "new"]]);
-  assert.equal(index?.manifest, manifest);
+  assert.deepEqual(replacement.received.map((r) => r.method), ["loadManifest"]);
+  await client.updateFiles([{ path: "/a.R", text: "new" }]);
+  assert.equal((await client.hover("/a.R", 1))?.markdown, "hover@1");
+  assert.equal(replacement.behavior.instances[0]?.manifest, manifest);
   assert.ok(logs.some(([level, message]) => level === "error" && message.includes("exit code 7")));
 });
 
+test("the client keeps no copy of file texts", async () => {
+  const { client, workers, current } = setup();
+  await client.updateFiles([{ path: "/a.R", text: "x" }]);
+  current().crash();
+  await settle();
+  assert.equal(await client.hover("/a.R", 0), undefined);
+  assert.deepEqual((workers[1] as FakeWorker).received.map((r) => r.method), ["hover"]);
+});
+
+test("fingerprints and texts round-trip through the worker", async () => {
+  const { client } = setup();
+  await client.updateFiles([
+    { path: "/b.R", text: "bb" },
+    { path: "/a.R", text: "a" },
+  ]);
+  assert.deepEqual(await client.fingerprints(), [
+    { path: "/a.R", contentHash: "hash:1", docHash: "doc:1" },
+    { path: "/b.R", contentHash: "hash:2", docHash: "doc:2" },
+  ]);
+  assert.deepEqual(await client.texts(["/b.R", "/gone.R"]), ["bb", null]);
+});
+
 test("requests in flight when the worker dies are rejected, later ones succeed", async () => {
-  const { client, current } = setup();
+  const { client, current } = setup({ onRestart: () => void client.updateFiles([{ path: "/a.R", text: "x" }]) });
   await client.updateFiles([{ path: "/a.R", text: "x" }]);
   current().hang();
   const inFlight = client.hover("/a.R", 0);
@@ -126,7 +144,10 @@ test("an error event restarts the worker too, and stale workers are ignored", as
 });
 
 test("a request that never completes times out, rejects, and restarts the worker", async () => {
-  const { client, current, workers } = setup({ requestTimeoutMs: 20 });
+  const { client, current, workers } = setup({
+    requestTimeoutMs: 20,
+    onRestart: () => void client.updateFiles([{ path: "/a.R", text: "x" }]),
+  });
   await client.updateFiles([{ path: "/a.R", text: "x" }]);
   current().hang();
   await assert.rejects(client.hover("/a.R", 0), /timed out/);
@@ -182,17 +203,4 @@ test("dispose terminates the worker, rejects pending work and ignores the exit e
   assert.equal(client.state(), "disposed");
   await assert.rejects(client.hover("/a.R", 0), /disposed/);
   await client.dispose();
-});
-
-test("large replays are chunked", async () => {
-  const { client, workers, current } = setup();
-  const files = Array.from({ length: 450 }, (_, i) => ({ path: `/f${i}.R`, text: String(i) }));
-  await client.updateFiles(files);
-  current().crash();
-  await settle();
-  const replayed = (workers[1] as FakeWorker).received.filter((r) => r.method === "updateFiles");
-  assert.deepEqual(
-    replayed.map((r) => (r.method === "updateFiles" ? r.params.files.length : 0)),
-    [200, 200, 50],
-  );
 });

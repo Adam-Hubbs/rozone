@@ -97,7 +97,6 @@ export const activateEnhanced: ActivateEnhanced = (context, base: BaseTierApi) =
       testClient = new SidecarClient({ ...spec, cwd, log: base.log });
       return testClient;
     },
-    readFile: (file) => fs.promises.readFile(file, "utf8"),
     injector,
     notifyRoxygenMissing: (missing) => void offerInstall(missing),
     onState: (state) => {
