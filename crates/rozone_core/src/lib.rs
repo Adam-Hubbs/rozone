@@ -64,6 +64,14 @@ pub struct SignatureHelp {
     pub source: DocSource,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileFingerprint {
+    pub path: String,
+    pub content_hash: String,
+    pub doc_hash: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionSummary {

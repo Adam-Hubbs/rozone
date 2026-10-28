@@ -37,6 +37,12 @@ export interface SignatureHelp {
   source: DocSource;
 }
 
+export interface FileFingerprint {
+  path: string;
+  contentHash: string;
+  docHash: string;
+}
+
 export interface FunctionSummary {
   name: string;
   path: string;
@@ -120,6 +126,11 @@ impl RozoneIndex {
     #[wasm_bindgen(js_name = documentedFunctions, unchecked_return_type = "FunctionSummary[]")]
     pub fn documented_functions(&self) -> Result<JsValue, JsError> {
         to_js(&self.inner.documented_functions())
+    }
+
+    #[wasm_bindgen(unchecked_return_type = "FileFingerprint[]")]
+    pub fn fingerprints(&self) -> Result<JsValue, JsError> {
+        to_js(&self.inner.fingerprints())
     }
 }
 

@@ -564,3 +564,147 @@ mod manifest {
         assert!(hover.markdown.contains("## Manifest title"));
     }
 }
+
+mod fingerprints {
+    use super::*;
+
+    fn doc_hash(text: &str) -> String {
+        index_of(&[("/s.R", text)]).fingerprints()[0]
+            .doc_hash
+            .clone()
+    }
+
+    const BASE: &str = "#' Title\n#' @param x Values.\nf <- function(x, w = 1) {\n  x + w\n}\n";
+
+    #[test]
+    fn fingerprints_are_sorted_by_path_and_carry_both_hashes() {
+        let index = index_of(&[("/b.R", "b <- 1\n"), ("/a.R", BASE)]);
+        let prints = index.fingerprints();
+        assert_eq!(prints[0].path, "/a.R");
+        assert_eq!(prints[1].path, "/b.R");
+        assert_eq!(prints[0].content_hash, content_hash(BASE));
+        assert_eq!(prints[0].doc_hash.len(), 16);
+        assert_eq!(
+            serde_json::to_value(&prints[0]).unwrap()["docHash"],
+            prints[0].doc_hash.as_str()
+        );
+    }
+
+    #[test]
+    fn body_edits_leave_the_doc_hash_alone() {
+        let edited = BASE.replace("x + w", "x * w + 1  # changed");
+        assert_eq!(doc_hash(BASE), doc_hash(&edited));
+        assert_ne!(content_hash(BASE), content_hash(&edited));
+    }
+
+    #[test]
+    fn plain_code_and_comments_between_statements_do_not_matter() {
+        let edited = format!("{BASE}x <- 1\n# note\nprint(x)\n");
+        assert_eq!(doc_hash(BASE), doc_hash(&edited));
+    }
+
+    #[test]
+    fn doc_relevant_edits_change_it() {
+        let base = doc_hash(BASE);
+        for edited in [
+            BASE.replace("Values.", "Other values."),
+            BASE.replace("w = 1", "w = 2"),
+            BASE.replace("function(x, w = 1)", "function(x,\n  w = 1)"),
+            BASE.replace("f <- ", "g <- "),
+            BASE.replace("#' Title\n", "#' Title\n\n"),
+            format!("#' More\n{BASE}"),
+        ] {
+            assert_ne!(base, doc_hash(&edited), "{edited}");
+        }
+    }
+
+    #[test]
+    fn non_function_statements_after_a_block_count() {
+        let a = "#' Data\n#' @format A table.\ndata_x <- data.frame(a = 1)\n";
+        let b = "#' Data\n#' @format A table.\ndata_x <- data.frame(a = 2)\n";
+        assert_ne!(doc_hash(a), doc_hash(b));
+        let c = "#' Doc\n\"_PACKAGE\"\n";
+        let d = "#' Doc\nNULL\n";
+        assert_ne!(doc_hash(c), doc_hash(d));
+    }
+
+    #[test]
+    fn encoding_is_unambiguous() {
+        assert_ne!(
+            doc_hash("f <- function(a) 1\ng <- function(b) 1\n"),
+            doc_hash("f <- function(a) 1\ng <- function(b, a) 1\n")
+        );
+        assert_ne!(doc_hash("#' a\n#' b\nNULL\n"), doc_hash("#' a b\nNULL\n"));
+    }
+
+    #[test]
+    fn manifest_applies_when_only_the_body_changed() {
+        let built_from =
+            "#' Weighted mean\n#'\n#' @param x Values.\nwmean <- function(x, w = 1) NULL\n";
+        let edited = built_from.replace("NULL", "{ x }");
+        let doc = doc_hash(built_from);
+        let json = format!(
+            r#"{{"version":1,"files":[{{"path":"/s.R","content_hash":"{doc}","topics":[{{"name":"wmean","title":"From roxygen2"}}]}}]}}"#
+        );
+        let mut index = index_of(&[("/s.R", &edited)]);
+        index.load_manifest(&json).unwrap();
+        let hover = index
+            .hover("/s.R", offset_of(&edited, "wmean <-") + 1)
+            .unwrap();
+        assert_eq!(hover.source, DocSource::Manifest);
+        assert!(hover.markdown.contains("From roxygen2"));
+
+        index.update_file("/s.R", &edited.replace("Values.", "Changed."));
+        let hover = index
+            .hover("/s.R", offset_of(&edited, "wmean <-") + 1)
+            .unwrap();
+        assert_eq!(hover.source, DocSource::Static);
+    }
+}
+
+mod reverse_maps {
+    use super::*;
+
+    const CALLER: &str = "#' In b\ng <- function() f()\n";
+
+    fn hover_f(index: &Index) -> Option<rozone_core::Hover> {
+        index.hover("/b.R", offset_of(CALLER, "f()") + 1)
+    }
+
+    #[test]
+    fn definitions_moving_between_files_stay_resolvable() {
+        let mut index = index_of(&[("/a.R", "#' In a\nf <- function() 1\n"), ("/b.R", CALLER)]);
+        assert!(hover_f(&index).unwrap().markdown.contains("In a"));
+        index.update_file("/a.R", "#' Renamed\nh <- function() 1\n");
+        assert!(hover_f(&index).is_none());
+        index.update_file("/c.R", "#' In c\nf <- function() 1\n");
+        assert!(hover_f(&index).unwrap().markdown.contains("In c"));
+        index.remove_file("/c.R");
+        assert!(hover_f(&index).is_none());
+    }
+
+    #[test]
+    fn rdname_members_follow_updates() {
+        let mut index = index_of(&[
+            ("/a.R", "#' Main\n#' @param x X.\nf <- function(x) 1\n"),
+            ("/b.R", "#' @rdname f\ng <- function(x) 2\n"),
+        ]);
+        assert!(index.documentation("f", None).unwrap().contains("g()"));
+        index.update_file("/b.R", "g <- function(x) 2\n");
+        assert!(!index.documentation("f", None).unwrap().contains("g()"));
+    }
+
+    #[test]
+    fn diamond_inheritance_resolves_without_blowup() {
+        let mut text = String::from("#' Root\n#' @param x Root x.\nl0 <- function(x) 1\n");
+        for i in 1..=40 {
+            let prev = i - 1;
+            text.push_str(&format!(
+                "#' Level {i}\n#' @inheritParams l{prev}\n#' @inheritParams l{prev}\nl{i} <- function(x) 1\n"
+            ));
+        }
+        let index = index_of(&[("/d.R", &text)]);
+        let page = index.documentation("l40", None).unwrap();
+        assert!(page.contains("Level 40"));
+    }
+}

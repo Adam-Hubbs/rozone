@@ -1,19 +1,19 @@
 //! The workspace index and the cursor-driven queries on it.
 
 use std::cell::OnceCell;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use air_r_syntax::RSyntaxNode;
 use biome_rowan::TextSize;
 
 use crate::call::{IdentAt, Usage, call_at, ident_at, match_args};
-use crate::extract::{Definition, Formal, parse};
+use crate::extract::{Definition, Formal, doc_canonical, parse};
 use crate::manifest::Manifest;
 use crate::roxygen::Block;
 use crate::text::TextMap;
 use crate::{
-    FunctionSummary, Hover, HoverKind, ManifestError, ParameterInfo, Range, SignatureHelp,
-    content_hash, markdown,
+    FileFingerprint, FunctionSummary, Hover, HoverKind, ManifestError, ParameterInfo, Range,
+    SignatureHelp, content_hash, markdown,
 };
 
 /// Name lookups for one file, built on first use so that `update_file` only
@@ -29,6 +29,7 @@ pub(crate) struct FileMaps {
 #[derive(Debug)]
 pub(crate) struct FileEntry {
     hash: OnceCell<String>,
+    doc_hash: OnceCell<String>,
     maps: OnceCell<FileMaps>,
     pub text: Box<str>,
     pub map: TextMap,
@@ -40,6 +41,12 @@ impl FileEntry {
     /// Computed on first use: only the manifest overlay needs it.
     pub fn hash(&self) -> &str {
         self.hash.get_or_init(|| content_hash(&self.text))
+    }
+
+    /// Hash of only what can change roxygen2's output (contracts §0).
+    pub fn doc_hash(&self) -> &str {
+        self.doc_hash
+            .get_or_init(|| content_hash(&doc_canonical(&self.text, &self.root)))
     }
 
     pub fn maps(&self) -> &FileMaps {
@@ -70,6 +77,7 @@ impl FileEntry {
         let parsed = parse(text);
         Self {
             hash: OnceCell::new(),
+            doc_hash: OnceCell::new(),
             maps: OnceCell::new(),
             text: text.into(),
             map: TextMap::new(text),
@@ -110,6 +118,11 @@ impl<'a> DefRef<'a> {
 #[derive(Debug, Default)]
 pub struct Index {
     files: HashMap<String, FileEntry>,
+    /// Reverse maps over all files, kept in step by `update_file` and
+    /// `remove_file` so queries never scan the workspace.
+    by_name: HashMap<String, BTreeSet<String>>,
+    by_rdname: HashMap<String, BTreeSet<(String, usize)>>,
+    by_describe: HashMap<String, BTreeSet<(String, usize)>>,
     manifest: Option<Manifest>,
 }
 
@@ -123,11 +136,79 @@ impl Index {
         if self.files.get(path).is_some_and(|file| *file.text == *text) {
             return;
         }
-        self.files.insert(path.to_string(), FileEntry::new(text));
+        self.remove_file(path);
+        let entry = FileEntry::new(text);
+        self.index_entry(path, &entry);
+        self.files.insert(path.to_string(), entry);
     }
 
     pub fn remove_file(&mut self, path: &str) {
-        self.files.remove(path);
+        if let Some(entry) = self.files.remove(path) {
+            self.unindex_entry(path, &entry);
+        }
+    }
+
+    fn index_entry(&mut self, path: &str, entry: &FileEntry) {
+        let maps = entry.maps();
+        for name in maps.by_name.keys() {
+            self.by_name
+                .entry(name.clone())
+                .or_default()
+                .insert(path.to_string());
+        }
+        for (target, source) in [
+            (&mut self.by_rdname, &maps.by_rdname),
+            (&mut self.by_describe, &maps.by_describe),
+        ] {
+            for (key, idxs) in source {
+                target
+                    .entry(key.clone())
+                    .or_default()
+                    .extend(idxs.iter().map(|&i| (path.to_string(), i)));
+            }
+        }
+    }
+
+    fn unindex_entry(&mut self, path: &str, entry: &FileEntry) {
+        let maps = entry.maps();
+        for name in maps.by_name.keys() {
+            if let Some(paths) = self.by_name.get_mut(name) {
+                paths.remove(path);
+                if paths.is_empty() {
+                    self.by_name.remove(name);
+                }
+            }
+        }
+        for (target, source) in [
+            (&mut self.by_rdname, &maps.by_rdname),
+            (&mut self.by_describe, &maps.by_describe),
+        ] {
+            for (key, idxs) in source {
+                if let Some(set) = target.get_mut(key) {
+                    for &i in idxs {
+                        set.remove(&(path.to_string(), i));
+                    }
+                    if set.is_empty() {
+                        target.remove(key);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every indexed file's hashes, ordered by path.
+    pub fn fingerprints(&self) -> Vec<FileFingerprint> {
+        let mut out: Vec<FileFingerprint> = self
+            .files
+            .iter()
+            .map(|(path, file)| FileFingerprint {
+                path: path.clone(),
+                content_hash: file.hash().to_string(),
+                doc_hash: file.doc_hash().to_string(),
+            })
+            .collect();
+        out.sort_unstable_by(|a, b| a.path.cmp(&b.path));
+        out
     }
 
     /// Replaces any previous manifest. On error the previous one is kept.
@@ -149,7 +230,12 @@ impl Index {
         let signature = markdown::signature(&def.def().name, def.formals());
         let markdown = self.with_duplicate_note(
             def,
-            markdown::help_page(&def.def().name, file_label(def.path), &signature.label, &doc),
+            markdown::help_page(
+                &def.def().name,
+                file_label(def.path),
+                &signature.label,
+                &doc,
+            ),
         );
         Some(Hover {
             name: def.def().name.clone(),
@@ -218,7 +304,12 @@ impl Index {
         let signature = markdown::signature(&def.def().name, def.formals());
         Some(self.with_duplicate_note(
             def,
-            markdown::help_page(&def.def().name, file_label(def.path), &signature.label, &doc),
+            markdown::help_page(
+                &def.def().name,
+                file_label(def.path),
+                &signature.label,
+                &doc,
+            ),
         ))
     }
 
@@ -226,23 +317,24 @@ impl Index {
     /// siblings in other files or elsewhere in its own file.
     fn with_duplicate_note(&self, def: DefRef<'_>, page: String) -> String {
         let name = def.def().name.as_str();
-        let mut paths: Vec<&str> = self
-            .files
-            .iter()
-            .filter(|(path, file)| {
-                let count = file.maps().by_name.get(name).map_or(0, Vec::len);
-                if path.as_str() == def.path {
-                    count > 1
-                } else {
-                    count > 0
-                }
+        let paths: Vec<&str> = self
+            .by_name
+            .get(name)
+            .into_iter()
+            .flatten()
+            .filter(|path| {
+                path.as_str() != def.path
+                    || self.files[path.as_str()]
+                        .maps()
+                        .by_name
+                        .get(name)
+                        .is_some_and(|v| v.len() > 1)
             })
-            .map(|(path, _)| path.as_str())
+            .map(String::as_str)
             .collect();
         if paths.is_empty() {
             return page;
         }
-        paths.sort_unstable();
         let listed = paths
             .iter()
             .map(|path| format!("`{}`", file_label(path)))
@@ -289,17 +381,33 @@ impl Index {
         {
             return Some(DefRef { path, file, idx });
         }
-        let (path, file) = self
-            .files
-            .iter()
-            .filter(|(_, file)| file.maps().by_name.contains_key(name))
-            .min_by_key(|(path, _)| path.as_str())?;
+        let path = self.by_name.get(name)?.first()?;
+        let (path, file) = self.files.get_key_value(path.as_str())?;
         let idx = *file.maps().by_name.get(name)?.first()?;
         Some(DefRef { path, file, idx })
     }
 
-    pub(crate) fn files(&self) -> impl Iterator<Item = (&String, &FileEntry)> {
-        self.files.iter()
+    fn def_ref(&self, path: &str, idx: usize) -> Option<DefRef<'_>> {
+        let (path, file) = self.files.get_key_value(path)?;
+        Some(DefRef { path, file, idx })
+    }
+
+    /// Definitions whose `@rdname` is `page`.
+    pub(crate) fn rdname_members(&self, page: &str) -> impl Iterator<Item = DefRef<'_>> {
+        self.by_rdname
+            .get(page)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, idx)| self.def_ref(path, *idx))
+    }
+
+    /// Definitions whose `@describeIn` parent is `parent`.
+    pub(crate) fn describe_members(&self, parent: &str) -> impl Iterator<Item = DefRef<'_>> {
+        self.by_describe
+            .get(parent)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, idx)| self.def_ref(path, *idx))
     }
 
     pub(crate) fn manifest(&self) -> Option<&Manifest> {

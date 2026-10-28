@@ -49,6 +49,21 @@ impl Definition {
             .as_ref()
     }
 
+    /// The raw text of the attached `#'` block, if any.
+    pub fn block_text<'t>(&self, text: &'t str) -> &'t str {
+        self.block_span
+            .and_then(|span| text.get(usize::from(span.start())..usize::from(span.end())))
+            .unwrap_or_default()
+    }
+
+    /// Exact source of the argument list, parentheses included.
+    pub fn params_text(&self) -> String {
+        self.function
+            .parameters()
+            .map(|p| p.syntax().text_trimmed().to_string())
+            .unwrap_or_default()
+    }
+
     /// Whether the raw block mentions `tag`; lets the index find `@rdname` and
     /// `@describeIn` without parsing every block.
     pub fn block_mentions(&self, text: &str, tag: &str) -> bool {
@@ -132,6 +147,61 @@ fn formals(function: &RFunctionDefinition) -> Vec<Formal> {
                 .map(|v| v.syntax().text_trimmed().to_string()),
         })
         .collect()
+}
+
+/// Everything in a file that can change roxygen2's output, as one
+/// unambiguous string (length-prefixed records); see contracts §0.
+pub fn doc_canonical(text: &str, root: &RSyntaxNode) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let mut record = |tag: char, body: &str| {
+        let _ = writeln!(out, "{tag}{}:{body}", body.len());
+    };
+    for line in text.lines() {
+        let line_start = line.trim_start();
+        if line_start.starts_with('#') && line_start.trim_start_matches('#').starts_with('\'') {
+            record('R', line);
+        }
+    }
+    let Some(root) = air_r_syntax::RRoot::cast(root.clone()) else {
+        return out;
+    };
+    for stmt in root.statements().iter() {
+        let Some(expr) = stmt
+            .as_r_expression_statement()
+            .and_then(|s| s.expression().ok())
+        else {
+            continue;
+        };
+        if let Some(def) = definition(&expr) {
+            record(
+                'D',
+                &format!(
+                    "{}\u{1f}{}\u{1f}{}",
+                    def.block_text(text),
+                    def.name,
+                    def.params_text()
+                ),
+            );
+        } else if let Some(leading) = roxygen_leading(expr.syntax()) {
+            record(
+                'X',
+                &format!("{leading}\u{1f}{}", expr.syntax().text_trimmed()),
+            );
+        }
+    }
+    out
+}
+
+/// The statement's leading comments and line breaks when they include a `#'`
+/// line, attached or not. Blank lines matter: they decide what roxygen2 keeps.
+fn roxygen_leading(node: &RSyntaxNode) -> Option<String> {
+    let token = node.first_token()?;
+    let pieces = token.leading_trivia();
+    let has_roxygen = pieces
+        .pieces()
+        .any(|p| p.is_comments() && p.text().trim_start_matches('#').starts_with('\''));
+    has_roxygen.then(|| pieces.pieces().map(|p| p.text().to_string()).collect())
 }
 
 pub fn unquote(name: &str) -> String {

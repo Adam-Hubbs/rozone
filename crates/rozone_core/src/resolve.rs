@@ -3,6 +3,7 @@
 //! overlay.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::DocSource;
 use crate::extract::Definition;
@@ -80,14 +81,26 @@ impl Resolved {
     }
 }
 
-/// Definitions currently being expanded, to stop inheritance cycles.
+/// All members of a definition's page, and those contributing whole fields.
+type Peers<'a> = Rc<(Vec<DefRef<'a>>, Vec<DefRef<'a>>)>;
+
+/// State for one resolution: definitions currently being expanded (to stop
+/// inheritance cycles) and memos so that diamond-shaped inheritance and
+/// repeated page lookups are computed once.
 #[derive(Default)]
 struct Walk<'a> {
     fields: Vec<DefKey<'a>>,
     params: Vec<DefKey<'a>>,
+    peers: HashMap<DefKey<'a>, Peers<'a>>,
+    fields_memo: HashMap<DefKey<'a>, Resolved>,
+    params_memo: HashMap<DefKey<'a>, HashMap<String, String>>,
+    /// Bumped whenever a cycle or the depth cap truncates an expansion; only
+    /// untruncated results are memoised, as truncation depends on the path.
+    cuts: usize,
 }
 
 const MAX_RELATED: usize = 6;
+const MAX_DEPTH: usize = 16;
 
 impl Index {
     /// The documentation for `def`, or `None` if it has none.
@@ -95,7 +108,7 @@ impl Index {
         let definition = def.def();
         if let Some(topic) = self
             .manifest()
-            .and_then(|m| m.topic_for(def.path, def.file.hash(), &definition.name))
+            .and_then(|m| m.topic_for(def.path, def.file, &definition.name))
         {
             return Some(Resolved::from_topic(topic, definition));
         }
@@ -109,7 +122,7 @@ impl Index {
         let definition = def.def();
         if let Some(topic) = self
             .manifest()
-            .and_then(|m| m.topic_for(def.path, def.file.hash(), &definition.name))
+            .and_then(|m| m.topic_for(def.path, def.file, &definition.name))
         {
             return Some(topic.title.clone().filter(|t| !t.trim().is_empty()));
         }
@@ -137,14 +150,20 @@ impl Index {
         walk: &mut Walk<'a>,
         with_params: bool,
     ) -> Resolved {
-        let mut resolved = Resolved::empty(DocSource::Static);
         let key = def.key();
-        if walk.fields.contains(&key) {
+        if !with_params && let Some(memo) = walk.fields_memo.get(&key) {
+            return memo.clone();
+        }
+        let mut resolved = Resolved::empty(DocSource::Static);
+        if walk.fields.contains(&key) || walk.fields.len() >= MAX_DEPTH {
+            walk.cuts += 1;
             return resolved;
         }
         walk.fields.push(key);
+        let cuts_before = walk.cuts;
 
-        let (members, field_peers) = self.peers(def);
+        let peers = self.peers(def, walk);
+        let (members, field_peers) = (&peers.0, &peers.1);
         let blocks: Vec<&Block> = std::iter::once(block)
             .chain(field_peers.iter().filter_map(|peer| peer.block()))
             .collect();
@@ -201,8 +220,11 @@ impl Index {
                 .collect();
         }
 
-        resolved.related = self.related_lines(def, block, &members);
+        resolved.related = self.related_lines(def, block, members);
         walk.fields.pop();
+        if !with_params && walk.cuts == cuts_before {
+            walk.fields_memo.insert(key, resolved.clone());
+        }
         resolved
     }
 
@@ -263,12 +285,20 @@ impl Index {
     /// inheritance tags provide for formals still undocumented.
     fn params_of<'a>(&'a self, def: DefRef<'a>, walk: &mut Walk<'a>) -> HashMap<String, String> {
         let key = def.key();
-        if walk.params.contains(&key) {
+        if let Some(memo) = walk.params_memo.get(&key) {
+            return memo.clone();
+        }
+        if walk.params.contains(&key) || walk.params.len() >= MAX_DEPTH {
+            walk.cuts += 1;
             return HashMap::new();
         }
         walk.params.push(key);
+        let cuts_before = walk.cuts;
         let documented = self.collect_params(def, walk);
         walk.params.pop();
+        if walk.cuts == cuts_before {
+            walk.params_memo.insert(key, documented.clone());
+        }
         documented
     }
 
@@ -277,11 +307,11 @@ impl Index {
         def: DefRef<'a>,
         walk: &mut Walk<'a>,
     ) -> HashMap<String, String> {
-        let (members, _) = self.peers(def);
+        let peers = self.peers(def, walk);
         let blocks: Vec<&Block> = def
             .block()
             .into_iter()
-            .chain(members.iter().filter_map(|peer| peer.block()))
+            .chain(peers.0.iter().filter_map(|peer| peer.block()))
             .collect();
         let mut documented: HashMap<String, String> = HashMap::new();
         for param in blocks.iter().flat_map(|b| &b.params) {
@@ -386,7 +416,10 @@ impl Index {
     /// Other definitions on `def`'s page: all of them (for parameters), and
     /// those that contribute whole fields (everything but `@describeIn` ones,
     /// and nothing at all if `def` is itself a `@describeIn`).
-    fn peers<'a>(&'a self, def: DefRef<'a>) -> (Vec<DefRef<'a>>, Vec<DefRef<'a>>) {
+    fn peers<'a>(&'a self, def: DefRef<'a>, walk: &mut Walk<'a>) -> Peers<'a> {
+        if let Some(peers) = walk.peers.get(&def.key()) {
+            return Rc::clone(peers);
+        }
         let page = self.page_of(def, 0);
         let mut members = self.page_members(&page, def.path);
         members.retain(|m| m.key() != def.key());
@@ -400,7 +433,9 @@ impl Index {
                 .filter(|m| m.block().is_some_and(|b| b.describe_in.is_none()))
                 .collect()
         };
-        (members, field_peers)
+        let peers = Rc::new((members, field_peers));
+        walk.peers.insert(def.key(), Rc::clone(&peers));
+        peers
     }
 
     /// The primary definition (named like the page) first, then by position.
@@ -415,24 +450,9 @@ impl Index {
                 .iter()
                 .filter_map(|parent| self.lookup(parent, Some(origin)))
                 .collect();
-            for (path, file) in self.files() {
-                let maps = file.maps();
-                candidates.extend(
-                    maps.by_rdname
-                        .get(page)
-                        .into_iter()
-                        .flatten()
-                        .map(|&idx| DefRef { path, file, idx }),
-                );
-                for parent in &parents {
-                    candidates.extend(
-                        maps.by_describe
-                            .get(parent.as_str())
-                            .into_iter()
-                            .flatten()
-                            .map(|&idx| DefRef { path, file, idx }),
-                    );
-                }
+            candidates.extend(self.rdname_members(page));
+            for parent in &parents {
+                candidates.extend(self.describe_members(parent));
             }
             for candidate in candidates {
                 if !members.iter().any(|m| m.key() == candidate.key())

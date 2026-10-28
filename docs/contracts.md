@@ -21,6 +21,21 @@ editors/code/r       sidecar.R              (§3 producer, §4 server)
   16 lowercase hex digits. Offset basis `0xcbf29ce484222325`, prime
   `0x100000001b3`. `content_hash("")` is `"cbf29ce484222325"`. The TS side gets
   it from `contentHash()` in the WASM module; the sidecar only echoes it.
+- **Doc hash**: the same FNV-1a 64 (16 lowercase hex digits) over a canonical
+  string of only what can change roxygen2's output for a file, so editing a
+  function *body* leaves it unchanged. The string is a sequence of records
+  `<tag><byte length>:<body>\n`, in this order:
+  1. `R` records: every line matching `^\s*#+'` anywhere in the file, in order,
+     verbatim (without the line terminator).
+  2. For each top-level statement in document order: if it is a function
+     definition (any form of §1), a `D` record whose body is
+     `<raw text of the attached #' block, "" if none>\x1f<name>\x1f<exact source text of the parameter list, parentheses and defaults included>`;
+     otherwise, if its leading trivia contains a `#'` line (attached or
+     separated by blank lines), an `X` record whose body is
+     `<the leading comments and line breaks verbatim>\x1f<the statement's full trimmed source text>`.
+  Everything else (bodies, plain code, plain comments) is ignored. When in
+  doubt something is included. `Index::fingerprints()` computes it lazily and
+  caches it per file; it is requested once per save, not per keystroke.
 
 ## 1. `rozone_core` public API (Rust)
 
@@ -38,6 +53,8 @@ impl Index {
     /// Full documentation page (markdown) for the "Open documentation" preview.
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String>;
     pub fn documented_functions(&self) -> Vec<FunctionSummary>;
+    /// Every indexed file, sorted by path.
+    pub fn fingerprints(&self) -> Vec<FileFingerprint>;
 }
 
 pub fn content_hash(text: &str) -> String;
@@ -64,6 +81,7 @@ interface SignatureHelp {
   activeParameter: number | null; // index into parameters after R argument matching; null if unmatched
   source: "static" | "manifest";
 }
+interface FileFingerprint { path: string; contentHash: string; docHash: string }
 interface FunctionSummary { name: string; path: string; range: Range; title: string | null }
 ```
 
@@ -79,8 +97,14 @@ Resolution rules:
   (Ark handles them). An undocumented function *with* a manifest topic is
   documented.
 - **Manifest overlay**: a manifest topic is used only if its file's
-  `content_hash` equals the hash of the text currently indexed for that path;
-  otherwise the static model is used.
+  `content_hash` equals the content hash **or** the doc hash (§0) of the text
+  currently indexed for that path; otherwise the static model is used. The
+  extension sends doc hashes to the sidecar, which echoes them, so roxygen2's
+  docs keep showing while a file has unsaved body-only edits.
+- Lookups are independent of workspace size: the index keeps reverse maps
+  (name -> defining paths, `@rdname` and `@describeIn` members) updated per
+  file in `update_file`/`remove_file`. Inheritance expansion is memoised per
+  resolution and capped at depth 16.
 
 ## 2. WASM API (`rozone_wasm`, JS, `wasm-pack build --target nodejs`)
 
@@ -95,6 +119,7 @@ export class RozoneIndex {
   signatureHelp(path: string, offset: number): SignatureHelp | undefined;
   documentation(name: string, from_path?: string | null): string | undefined; // wasm-bindgen keeps the Rust parameter name
   documentedFunctions(): FunctionSummary[];
+  fingerprints(): FileFingerprint[];            // sorted by path
   free(): void;
 }
 export function contentHash(text: string): string;
@@ -119,7 +144,7 @@ produced into `editors/code/wasm/` by `npm run build:wasm` (which also writes a
   "files": [
     {
       "path": "/abs/script.R",
-      "content_hash": "0123456789abcdef",
+      "content_hash": "0123456789abcdef",   // content hash or doc hash (§0) of the file's text
       "topics": [
         {
           "name": "wmean",

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Deserializer};
 
 use crate::ManifestError;
+use crate::index::FileEntry;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ManifestParam {
@@ -113,12 +114,15 @@ impl Manifest {
     }
 
     /// The topic for `name` in `path`, only if the manifest was built from
-    /// exactly the text that is indexed now (`current_hash`).
-    pub fn topic_for(&self, path: &str, current_hash: &str, name: &str) -> Option<&Topic> {
-        let file = self.files.get(path)?;
-        if file.content_hash != current_hash {
+    /// the text that is indexed now (same content hash) or from text with the
+    /// same roxygen-relevant content (same doc hash).
+    pub fn topic_for(&self, path: &str, file: &FileEntry, name: &str) -> Option<&Topic> {
+        let manifest_file = self.files.get(path)?;
+        if manifest_file.content_hash != file.hash()
+            && manifest_file.content_hash != file.doc_hash()
+        {
             return None;
         }
-        file.topic(name)
+        manifest_file.topic(name)
     }
 }
