@@ -139,10 +139,16 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
     assert.ok(elapsed < 1500, `took ${elapsed} ms`);
   });
 
-  test("a sidecar killed from outside is restarted", async () => {
+  test("a sidecar killed from outside stays down until docs change, then comes back", async () => {
     const before = rozone._test.enhanced.sidecarPid();
     assert.ok(before);
     process.kill(before, "SIGKILL");
+    await waitFor("the killed sidecar to be noticed", () => rozone._test.enhanced.sidecarPid() === undefined, 10_000);
+    // Longer than the 1 s crash backoff: the retry finds nothing to rebuild and leaves R off.
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    assert.equal(rozone._test.enhanced.sidecarPid(), undefined);
+    assert.ok(isEnhanced());
+    await saveDocEdit();
     const after = await waitFor(
       "a replacement sidecar",
       () => {
@@ -175,9 +181,16 @@ suite("enhanced tier end to end (real Rscript and sidecar.R)", function () {
       10_000,
     );
     rozone._test.enhanced.setIdleMinutes(undefined);
-    await appendText(await openFixture("enhanced", "live_edit.R"), "\n");
-    await vscode.window.showTextDocument(await openFixture("enhanced", "live_edit.R"));
-    await vscode.workspace.saveAll();
+    await saveDocEdit();
     await waitFor("the sidecar to restart on the next save", () => rozone._test.enhanced.sidecarPid() !== undefined, 30_000);
   });
 });
+
+let docEdits = 0;
+/** Only a change that can alter roxygen2's output starts R again (contracts §4), so add a documented function. */
+async function saveDocEdit(): Promise<void> {
+  const doc = await openFixture("enhanced", "live_edit.R");
+  await appendText(doc, `\n#' Added by the test\nadded_${++docEdits} <- function() NULL\n`);
+  await vscode.window.showTextDocument(doc);
+  await vscode.workspace.saveAll();
+}
