@@ -388,7 +388,7 @@ impl Index {
     /// and nothing at all if `def` is itself a `@describeIn`).
     fn peers<'a>(&'a self, def: DefRef<'a>) -> (Vec<DefRef<'a>>, Vec<DefRef<'a>>) {
         let page = self.page_of(def, 0);
-        let mut members = self.page_members(&page);
+        let mut members = self.page_members(&page, def.path);
         members.retain(|m| m.key() != def.key());
         let is_describe = def.block().is_some_and(|b| b.describe_in.is_some());
         let field_peers = if is_describe {
@@ -404,12 +404,17 @@ impl Index {
     }
 
     /// The primary definition (named like the page) first, then by position.
-    fn page_members<'a>(&'a self, page: &str) -> Vec<DefRef<'a>> {
+    fn page_members<'a>(&'a self, page: &str, origin: &str) -> Vec<DefRef<'a>> {
         let mut members: Vec<DefRef<'a>> = Vec::new();
         let mut parents = vec![page.to_string()];
         for _ in 0..3 {
             let before = members.len();
-            let mut candidates: Vec<(&'a String, &'a crate::index::FileEntry, usize)> = Vec::new();
+            // Same-named definitions elsewhere are separate functions, so a
+            // name only contributes the definition it resolves to from `origin`.
+            let mut candidates: Vec<DefRef<'a>> = parents
+                .iter()
+                .filter_map(|parent| self.lookup(parent, Some(origin)))
+                .collect();
             for (path, file) in self.files() {
                 let maps = file.maps();
                 candidates.extend(
@@ -417,27 +422,19 @@ impl Index {
                         .get(page)
                         .into_iter()
                         .flatten()
-                        .map(|&i| (path, file, i)),
+                        .map(|&idx| DefRef { path, file, idx }),
                 );
                 for parent in &parents {
-                    candidates.extend(
-                        maps.by_name
-                            .get(parent.as_str())
-                            .into_iter()
-                            .flatten()
-                            .map(|&i| (path, file, i)),
-                    );
                     candidates.extend(
                         maps.by_describe
                             .get(parent.as_str())
                             .into_iter()
                             .flatten()
-                            .map(|&i| (path, file, i)),
+                            .map(|&idx| DefRef { path, file, idx }),
                     );
                 }
             }
-            for (path, file, idx) in candidates {
-                let candidate = DefRef { path, file, idx };
+            for candidate in candidates {
                 if !members.iter().any(|m| m.key() == candidate.key())
                     && self.page_of(candidate, 0) == page
                 {

@@ -147,15 +147,14 @@ impl Index {
         let (def, kind) = self.hover_target(path, file, &ident)?;
         let doc = self.resolve(def)?;
         let signature = markdown::signature(&def.def().name, def.formals());
+        let markdown = self.with_duplicate_note(
+            def,
+            markdown::help_page(&def.def().name, file_label(def.path), &signature.label, &doc),
+        );
         Some(Hover {
             name: def.def().name.clone(),
             kind,
-            markdown: markdown::help_page(
-                &def.def().name,
-                file_label(def.path),
-                &signature.label,
-                &doc,
-            ),
+            markdown,
             range: self.range_in(file, ident.range),
             source: doc.source,
         })
@@ -217,12 +216,39 @@ impl Index {
         let def = self.lookup(name, from_path)?;
         let doc = self.resolve(def)?;
         let signature = markdown::signature(&def.def().name, def.formals());
-        Some(markdown::help_page(
-            &def.def().name,
-            file_label(def.path),
-            &signature.label,
-            &doc,
+        Some(self.with_duplicate_note(
+            def,
+            markdown::help_page(&def.def().name, file_label(def.path), &signature.label, &doc),
         ))
+    }
+
+    /// Same-named definitions are separate functions; say so when `def` has
+    /// siblings in other files or elsewhere in its own file.
+    fn with_duplicate_note(&self, def: DefRef<'_>, page: String) -> String {
+        let name = def.def().name.as_str();
+        let mut paths: Vec<&str> = self
+            .files
+            .iter()
+            .filter(|(path, file)| {
+                let count = file.maps().by_name.get(name).map_or(0, Vec::len);
+                if path.as_str() == def.path {
+                    count > 1
+                } else {
+                    count > 0
+                }
+            })
+            .map(|(path, _)| path.as_str())
+            .collect();
+        if paths.is_empty() {
+            return page;
+        }
+        paths.sort_unstable();
+        let listed = paths
+            .iter()
+            .map(|path| format!("`{}`", file_label(path)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{page}\n\n*Also defined in:* {listed}")
     }
 
     /// Every documented function in the workspace, ordered by path and position.
