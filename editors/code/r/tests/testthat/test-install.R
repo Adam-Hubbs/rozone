@@ -18,13 +18,13 @@ install_build <- function(lib_root, text, state, hash = text) {
   )
 }
 
-test_that("each install goes to a fresh increasing generation and old ones go", {
+test_that("each install goes to a fresh increasing generation and keeps old ones", {
   lib_root <- withr::local_tempdir()
   state <- new_state()
   dirs <- c("v1", "v2", "v3") |>
     purrr::map_chr(\(v) install_build(lib_root, wmean_text(v), state)$lib_dir)
   expect_identical(basename(dirs), c("lib-1", "lib-2", "lib-3"))
-  expect_identical(list.files(lib_root), "lib-3")
+  expect_identical(list.files(lib_root), c("lib-1", "lib-2", "lib-3"))
 })
 
 test_that("an unchanged workspace reuses the installed library", {
@@ -41,7 +41,29 @@ test_that("a new process continues after the highest existing generation", {
   dir.create(file.path(lib_root, "lib-7"))
   result <- install_build(lib_root, wmean_text(), new_state())
   expect_identical(basename(result$lib_dir), "lib-8")
-  expect_identical(list.files(lib_root), "lib-8")
+  expect_identical(list.files(lib_root), c("lib-7", "lib-8"))
+})
+
+test_that("reuse is tracked per lib_root", {
+  root_a <- withr::local_tempdir()
+  root_b <- withr::local_tempdir()
+  state <- new_state()
+  first_a <- install_build(root_a, wmean_text(), state)$lib_dir
+  first_b <- install_build(root_b, wmean_text(), state)$lib_dir
+  again_a <- install_build(root_a, wmean_text(), state)$lib_dir
+  expect_identical(again_a, first_a)
+  expect_false(identical(first_a, first_b))
+  expect_identical(list.files(root_a), basename(first_a))
+})
+
+test_that("a deleted lib_dir is reinstalled rather than reused", {
+  lib_root <- withr::local_tempdir()
+  state <- new_state()
+  first <- install_build(lib_root, wmean_text(), state)$lib_dir
+  unlink(first, recursive = TRUE)
+  second <- install_build(lib_root, wmean_text(), state)$lib_dir
+  expect_false(identical(first, second))
+  expect_true(dir.exists(second))
 })
 
 test_that("the installed package is loadable and exposes help topics", {

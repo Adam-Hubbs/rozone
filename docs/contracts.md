@@ -166,7 +166,7 @@ exactly one `{"id": <same>, "result": {...}}` or
 `{"id": <same>, "error": {"message": "..."}}`. Requests are processed in order.
 
 - `build`
-  - params: `{ "files": [{ "path": "...", "hash": "...", "text": "..."? }], "install": false, "lib_root": "/globalStorage/path"? }`
+  - params: `{ "files": [{ "path": "...", "hash": "...", "text": "..."? }], "install": false, "lib_root": "/workspaceStorage/<session id>"? }`
     - `text` is optional; if absent the file is read from disk.
     - The request lists the **complete** set of workspace files; files not
       listed are dropped from the cache.
@@ -174,14 +174,15 @@ exactly one `{"id": <same>, "result": {...}}` or
     - A file roxygen2 can't parse goes in `errors` and is omitted from the
       manifest; the rest of the build still succeeds.
     - `install: true` requires `lib_root`; it runs `R CMD INSTALL` of a
-      generated `rozone.docs` package into a fresh `lib_root/lib-<gen>` and
-      deletes older generations.
+      generated `rozone.docs` package into a fresh `lib_root/lib-<gen>`. The
+      sidecar never deletes generations; the extension owns cleanup (see §5).
     - `topics` is the sorted set of aliases in the generated package after
       collision resolution (smallest path wins), i.e. what the hover provider
       skips for call sites once injected.
     - An `R CMD INSTALL` failure does not fail the build: `lib_dir` is `null`
       and `errors` gets an entry with `path: "rozone.docs"`. An unchanged
-      `(path, hash)` set and `lib_root` reuses the previous `lib_dir`.
+      `(path, hash)` set reuses the previous `lib_dir` installed into the
+      same `lib_root`, as long as that directory still exists.
     - Cross-package inheritance from an uninstalled package adds an `errors`
       entry for that file; the file stays in the manifest.
     - Generated Rd whose macro-expanded tree contains `\Sexpr` is dropped
@@ -215,3 +216,14 @@ local({
 run with `positron.runtime.executeCode`/`evaluateCode` and
 `RuntimeBusyBehavior.Reject`; topics in the build are the set the hover
 provider skips for `kind == "call"`.
+
+Library ownership: each R session gets its own `lib_root`,
+`<workspace storage>/<session id>/` (global storage `no-workspace/` when no
+folder is open), so a loaded namespace never points into a directory that
+another session or window cleans up. The extension deletes:
+
+- the session's other `lib-<gen>` directories, only after a successful
+  injection of the new one;
+- the whole session directory when the session ends for good (not on
+  `restart`, `transferred` or `extensionHost` exits);
+- at startup, session directories that are not live and untouched for 24h.

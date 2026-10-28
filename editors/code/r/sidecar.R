@@ -983,8 +983,7 @@ new_state <- function() {
   state <- new.env(parent = emptyenv())
   state$cache <- list()
   state$generation <- 0L
-  state$install_signature <- NULL
-  state$lib_dir <- NULL
+  state$installs <- list()
   state$shutdown <- FALSE
   state
 }
@@ -1060,16 +1059,6 @@ install_docs <- function(rd_files, lib_root, state) {
     unlink(lib, recursive = TRUE)
     stop("R CMD INSTALL failed with status ", status, call. = FALSE)
   }
-  old <- setdiff(existing_generations(lib_root), state$generation)
-  old[old < state$generation] |>
-    purrr::walk(
-      \(g)
-        unlink(
-          file.path(lib_root, paste0("lib-", g)),
-          recursive = TRUE,
-          force = TRUE
-        )
-    )
   lib
 }
 
@@ -1159,13 +1148,12 @@ handle_build <- function(params, state) {
   if (install) {
     signature <- ok[sort(names(ok))] |>
       purrr::imap_chr(\(e, p) paste(p, e$hash)) |>
-      paste(collapse = "\n") |>
-      paste(params$lib_root, sep = "\n")
-    reusable <- identical(state$install_signature, signature) &&
-      !is.null(state$lib_dir) &&
-      dir.exists(state$lib_dir)
+      paste(collapse = "\n")
+    state$installs <- purrr::keep(state$installs, \(i) dir.exists(i$lib_dir))
+    previous <- state$installs[[params$lib_root]]
+    reusable <- identical(previous$signature, signature)
     if (reusable) {
-      lib_dir <- state$lib_dir
+      lib_dir <- previous$lib_dir
     } else {
       installed <- tryCatch(
         install_docs(winners, params$lib_root, state),
@@ -1179,8 +1167,10 @@ handle_build <- function(params, state) {
       )
       if (!is.null(installed)) {
         lib_dir <- installed
-        state$lib_dir <- installed
-        state$install_signature <- signature
+        state$installs[[params$lib_root]] <- list(
+          signature = signature,
+          lib_dir = installed
+        )
       }
     }
   }
