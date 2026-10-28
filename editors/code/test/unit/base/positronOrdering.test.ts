@@ -174,3 +174,19 @@ test("dispose cancels pending re-registrations and unsubscribes everything", asy
   clock.flush();
   assert.equal(registrations.length, 1);
 });
+
+test("sessions that are no longer active are unsubscribed, and dispose releases the rest", async () => {
+  const gone = emitter<string>();
+  const kept = emitter<string>();
+  const sessions: SessionLike[] = [{ onDidChangeRuntimeState: gone.event }, { onDidChangeRuntimeState: kept.event }];
+  const { foreground, subscription } = setup(sessions);
+  await flushMicrotasks();
+  assert.equal(gone.count() + kept.count(), 2);
+  sessions.shift();
+  foreground.fire("b");
+  await flushMicrotasks();
+  assert.equal(gone.count(), 0);
+  assert.equal(kept.count(), 1);
+  subscription.dispose();
+  assert.equal(kept.count(), 0);
+});

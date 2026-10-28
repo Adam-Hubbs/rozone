@@ -61,7 +61,7 @@ export function reregisterOnPositronEvents(
   const cancel = options.clearTimeout ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const handles = new Set<unknown>();
   const subscriptions: DisposableLike[] = [];
-  const watched = new WeakSet<object>();
+  const watched = new Map<SessionLike, DisposableLike>();
   let disposed = false;
 
   const run = () => {
@@ -76,18 +76,26 @@ export function reregisterOnPositronEvents(
 
   const watch = (session: SessionLike) => {
     if (watched.has(session) || !session.onDidChangeRuntimeState) return;
-    watched.add(session);
-    subscriptions.push(
+    watched.set(
+      session,
       session.onDidChangeRuntimeState((state) => {
         if (TRIGGER_STATES.has(state)) run();
       }),
     );
   };
 
+  // Sessions that are no longer active are released here, so subscriptions don't pile up over a long-lived window.
   const watchActive = () => {
     void Promise.resolve(positron.runtime.getActiveSessions()).then(
       (sessions) => {
-        if (!disposed) sessions.forEach(watch);
+        if (disposed) return;
+        const active = new Set(sessions);
+        for (const [session, subscription] of watched) {
+          if (active.has(session)) continue;
+          subscription.dispose();
+          watched.delete(session);
+        }
+        sessions.forEach(watch);
       },
       () => {},
     );
@@ -108,6 +116,8 @@ export function reregisterOnPositronEvents(
       handles.forEach(cancel);
       handles.clear();
       subscriptions.forEach((subscription) => subscription.dispose());
+      watched.forEach((subscription) => subscription.dispose());
+      watched.clear();
     },
   };
 }

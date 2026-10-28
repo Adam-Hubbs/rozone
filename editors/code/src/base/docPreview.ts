@@ -4,6 +4,7 @@ import type { IndexClient } from "./indexClient.ts";
 import { pathKey } from "./paths.ts";
 
 export const DOC_SCHEME = "rozone-doc";
+const MAX_PAGES = 32;
 
 export interface DocPreview extends vscode.Disposable {
   open(name: string, fromPath?: string): Promise<vscode.Uri | undefined>;
@@ -32,7 +33,15 @@ export function createDocPreview(client: IndexClient, discovery: Discovery, log:
       return undefined;
     }
     const uri = docUri(name, fromPath);
-    contents.set(uri.toString(), markdown);
+    const key = uri.toString();
+    // Re-inserting keeps the Map in recency order. Pages are evicted by count, not on document close,
+    // because a markdown preview can re-read its source after VS Code has closed the document.
+    contents.delete(key);
+    contents.set(key, markdown);
+    for (const oldest of contents.keys()) {
+      if (contents.size <= MAX_PAGES) break;
+      contents.delete(oldest);
+    }
     changed.fire(uri);
     await vscode.commands.executeCommand("markdown.showPreview", uri);
     return uri;
