@@ -1149,9 +1149,11 @@ handle_build <- function(params, state) {
 
   lib_dir <- NULL
   if (install) {
-    signature <- ok[sort(names(ok))] |>
-      purrr::imap_chr(\(e, p) paste(p, e$hash)) |>
-      paste(collapse = "\n")
+    # Keyed on the generated Rd rather than file hashes, so edits that don't
+    # change any help page never pay for an R CMD INSTALL.
+    signature <- winners[sort(names(winners))] |>
+      purrr::imap_chr(\(w, file) paste0(file, "\n", w$text)) |>
+      paste(collapse = "\n\f\n")
     state$installs <- purrr::keep(state$installs, \(i) dir.exists(i$lib_dir))
     previous <- state$installs[[params$lib_root]]
     reusable <- identical(previous$signature, signature)

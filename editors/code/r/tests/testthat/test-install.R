@@ -36,6 +36,17 @@ test_that("an unchanged workspace reuses the installed library", {
   expect_identical(list.files(lib_root), "lib-1")
 })
 
+test_that("a change that leaves every help page identical reuses the library", {
+  lib_root <- withr::local_tempdir()
+  state <- new_state()
+  first <- install_build(lib_root, wmean_text(), state)
+  body_edit <- sub("NULL", "sum(x) / length(x)", wmean_text(), fixed = TRUE)
+  second <- install_build(lib_root, body_edit, state)
+  expect_identical(second$lib_dir, first$lib_dir)
+  third <- install_build(lib_root, wmean_text("v2"), state)
+  expect_false(identical(third$lib_dir, first$lib_dir))
+})
+
 test_that("a new process continues after the highest existing generation", {
   lib_root <- withr::local_tempdir()
   dir.create(file.path(lib_root, "lib-7"))
