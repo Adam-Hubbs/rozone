@@ -38,15 +38,19 @@ package_version_or_na <- function(pkg) {
   )
 }
 
+# Base R only up to the hello: purrr arrives with roxygen2, so it is missing
+# exactly when the hello has to report roxygen2 as missing.
 hello_line <- function(required) {
-  versions <- required |>
-    purrr::set_names() |>
-    purrr::map_chr(package_version_or_na)
-  missing <- names(versions)[is.na(versions)]
+  versions <- vapply(required, package_version_or_na, character(1L))
+  missing <- required[is.na(versions)]
   found <- versions[!is.na(versions)]
   r_version <- paste(R.version$major, R.version$minor, sep = ".")
-  packages <- found |>
-    purrr::imap_chr(\(v, p) paste0(json_string(p), ":", json_string(v))) |>
+  packages <- paste0(
+    json_string(names(found)),
+    ":",
+    json_string(found),
+    recycle0 = TRUE
+  ) |>
     paste(collapse = ",")
   missing_json <- missing |> json_string() |> paste(collapse = ",")
   list(
@@ -68,11 +72,10 @@ hello_line <- function(required) {
 }
 
 required_packages <- function() {
-  Sys.getenv("ROZONE_SIDECAR_REQUIRE", "roxygen2,jsonlite") |>
-    strsplit(",", fixed = TRUE) |>
-    purrr::chuck(1L) |>
-    trimws() |>
-    purrr::keep(nzchar)
+  required <- Sys.getenv("ROZONE_SIDECAR_REQUIRE", "roxygen2,jsonlite") |>
+    strsplit(",", fixed = TRUE)
+  required <- trimws(required[[1L]])
+  required[nzchar(required)]
 }
 
 emit <- function(x) {
