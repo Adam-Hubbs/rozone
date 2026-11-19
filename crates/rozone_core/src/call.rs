@@ -13,6 +13,18 @@ pub enum Usage {
     /// The target of an assignment; only meaningful for known definitions.
     AssignTarget,
     Bare,
+    /// The name after `$` in `x$name`, with `x` in [`IdentAt::receiver`].
+    Member,
+    /// As `Member`, but called: `x$name(...)`.
+    MemberCallee,
+}
+
+/// The object side of `x$name`: a plain identifier and the whole `x$name`
+/// expression, from which its scope can be searched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Receiver {
+    pub name: String,
+    pub node: RSyntaxNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,10 +32,12 @@ pub struct IdentAt {
     pub name: String,
     pub range: TextRange,
     pub usage: Usage,
+    pub receiver: Option<Receiver>,
 }
 
 /// The plain identifier at `offset`. Names that are not references to a
-/// binding (`pkg::fn`, `x$fn`, `f(name = )`, parameter names) give `None`.
+/// binding (`pkg::fn`, `f(name = )`, parameter names) give `None`; `x$name`
+/// gives the member with its receiver when `x` is a plain identifier.
 pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
     let candidates = match root.token_at_offset(offset) {
         TokenAtOffset::None => return None,
@@ -46,7 +60,21 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
             | RSyntaxKind::R_ARGUMENT_NAME_CLAUSE
             | RSyntaxKind::R_PARAMETER => return None,
             RSyntaxKind::R_EXTRACT_EXPRESSION if parent.last_child().as_ref() == Some(&node) => {
-                return None;
+                let receiver = receiver_of(&parent)?;
+                let called = parent.parent().is_some_and(|call| {
+                    call.kind() == RSyntaxKind::R_CALL
+                        && call.first_child().as_ref() == Some(&parent)
+                });
+                return Some(IdentAt {
+                    name: unquote(token.text_trimmed()),
+                    range: token.text_trimmed_range(),
+                    usage: if called {
+                        Usage::MemberCallee
+                    } else {
+                        Usage::Member
+                    },
+                    receiver: Some(receiver),
+                });
             }
             RSyntaxKind::R_BINARY_EXPRESSION => binary_usage(&parent, &node),
             _ => Usage::Bare,
@@ -56,6 +84,22 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
         name: unquote(token.text_trimmed()),
         range: token.text_trimmed_range(),
         usage,
+        receiver: None,
+    })
+}
+
+/// `x` in `x$name`, when it is a plain identifier and the operator is `$`.
+fn receiver_of(extract: &RSyntaxNode) -> Option<Receiver> {
+    let op = operator_of(extract)?;
+    if op.kind() != RSyntaxKind::DOLLAR {
+        return None;
+    }
+    let left = extract
+        .first_child()
+        .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+    Some(Receiver {
+        name: unquote(&left.text_trimmed().to_string()),
+        node: extract.clone(),
     })
 }
 
@@ -65,7 +109,12 @@ fn binary_usage(binary: &RSyntaxNode, ident: &RSyntaxNode) -> Usage {
     };
     let is_left = binary.first_child().as_ref() == Some(ident);
     match op.kind() {
-        RSyntaxKind::ASSIGN | RSyntaxKind::SUPER_ASSIGN | RSyntaxKind::EQUAL if is_left => {
+        RSyntaxKind::ASSIGN
+        | RSyntaxKind::SUPER_ASSIGN
+        | RSyntaxKind::EQUAL
+        | RSyntaxKind::WALRUS
+            if is_left =>
+        {
             Usage::AssignTarget
         }
         RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT if !is_left => {
@@ -85,7 +134,10 @@ fn operator_of(binary: &RSyntaxNode) -> Option<RSyntaxToken> {
 /// A call whose argument list contains the cursor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallSite {
+    /// The function's name, or the member's name for `x$name(...)`.
     pub callee: String,
+    /// `x` for `x$name(...)`.
+    pub receiver: Option<Receiver>,
     /// Argument names in call order. A piped left-hand side comes first and
     /// is unnamed.
     pub arg_names: Vec<Option<String>>,
@@ -94,7 +146,7 @@ pub struct CallSite {
 }
 
 /// The innermost call enclosing `offset`, or `None` when that call's callee is
-/// not a plain identifier.
+/// neither a plain identifier nor `x$name` with a plain identifier `x`.
 pub fn call_at(root: &RSyntaxNode, offset: TextSize) -> Option<CallSite> {
     let token = match root.token_at_offset(offset) {
         TokenAtOffset::None => return None,
@@ -110,9 +162,18 @@ pub fn call_at(root: &RSyntaxNode, offset: TextSize) -> Option<CallSite> {
         node.kind() == RSyntaxKind::R_CALL_ARGUMENTS && contains_cursor(node, offset)
     })?;
     let call = args.parent().filter(|n| n.kind() == RSyntaxKind::R_CALL)?;
-    let callee = call
-        .first_child()
-        .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+    let function = call.first_child()?;
+    let (callee, receiver) = match function.kind() {
+        RSyntaxKind::R_IDENTIFIER => (function, None),
+        RSyntaxKind::R_EXTRACT_EXPRESSION => {
+            let receiver = receiver_of(&function)?;
+            let member = function
+                .last_child()
+                .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+            (member, Some(receiver))
+        }
+        _ => return None,
+    };
 
     let list = args
         .children()
@@ -141,6 +202,7 @@ pub fn call_at(root: &RSyntaxNode, offset: TextSize) -> Option<CallSite> {
     }
     Some(CallSite {
         callee: unquote(&callee.text_trimmed().to_string()),
+        receiver,
         arg_names,
         active_arg: cursor + usize::from(injected),
     })
@@ -416,7 +478,17 @@ mod tests {
     #[test]
     fn non_identifier_callees() {
         assert!(site("pkg::f(¦)").is_none());
-        assert!(site("x$f(¦)").is_none());
+        assert!(site("x@f(¦)").is_none());
+        assert!(site("f()$g(¦)").is_none());
+        assert!(site("x$y$f(¦)").is_none());
+    }
+
+    #[test]
+    fn member_callees_carry_their_receiver() {
+        let s = site("p$greet(1, ¦)").unwrap();
+        assert_eq!((s.callee.as_str(), s.active_arg), ("greet", 1));
+        assert_eq!(s.receiver.map(|r| r.name).as_deref(), Some("p"));
+        assert!(site("f(¦)").unwrap().receiver.is_none());
     }
 
     #[test]
@@ -459,8 +531,17 @@ mod tests {
             Some(("wmean".into(), Usage::AssignTarget))
         );
         assert_eq!(at("pkg::wm¦ean(1)"), None);
-        assert_eq!(at("x$wm¦ean(1)"), None);
+        assert_eq!(
+            at("x$wm¦ean(1)"),
+            Some(("wmean".into(), Usage::MemberCallee))
+        );
+        assert_eq!(at("x$wm¦ean"), Some(("wmean".into(), Usage::Member)));
+        assert_eq!(at("f()$wm¦ean"), None);
         assert_eq!(at("x@wm¦ean"), None);
+        assert_eq!(
+            at("Wm¦ean := new_class()"),
+            Some(("Wmean".into(), Usage::AssignTarget))
+        );
         assert_eq!(at("f(wm¦ean = 1)"), None);
         assert_eq!(at("function(wm¦ean) 1"), None);
         assert_eq!(at("\"wm¦ean\""), None);

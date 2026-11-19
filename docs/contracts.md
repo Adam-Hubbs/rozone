@@ -28,7 +28,8 @@ editors/code/r       sidecar.R              (§3 producer, §4 server)
   1. `R` records: every line matching `^\s*#+'` anywhere in the file, in order,
      verbatim (without the line terminator).
   2. For each top-level statement in document order: if it is a function
-     definition (any form of §1), a `D` record whose body is
+     plain function definition (one of the assignment forms in §1's first
+     resolution rule; S4, R6 and S7 definitions are not), a `D` record whose body is
      `<raw text of the attached #' block, "" if none>\x1f<name>\x1f<exact source text of the parameter list, parentheses and defaults included>`;
      otherwise, if its leading trivia contains a `#'` line (attached or
      separated by blank lines), an `X` record whose body is
@@ -51,6 +52,7 @@ impl Index {
     pub fn hover(&self, path: &str, offset: u32) -> Option<Hover>;
     pub fn signature_help(&self, path: &str, offset: u32) -> Option<SignatureHelp>;
     /// Full documentation page (markdown) for the "Open documentation" preview.
+    /// Also accepts the R6 names hovers report: `Class$member`, `Class$new`.
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String>;
     pub fn documented_functions(&self) -> Vec<FunctionSummary>;
     /// Every indexed file, sorted by path.
@@ -66,8 +68,8 @@ Output types serialize with `#[serde(rename_all = "camelCase")]`:
 type HoverKind = "call" | "definition" | "identifier";
 interface Range { start: number; end: number }          // UTF-16
 interface Hover {
-  name: string;          // resolved function name
-  kind: HoverKind;       // call = callee of a call; definition = LHS of the assignment; identifier = any other bare use
+  name: string;          // resolved name; "Class$member" for an R6 member or "Class$new" for its constructor
+  kind: HoverKind;       // call = callee of a call (incl. x$m(...)); definition = LHS of the assignment; identifier = any other use
   markdown: string;
   range: Range;          // the hovered identifier
   source: "static" | "manifest";
@@ -82,17 +84,53 @@ interface SignatureHelp {
   source: "static" | "manifest";
 }
 interface FileFingerprint { path: string; contentHash: string; docHash: string }
-interface FunctionSummary { name: string; path: string; range: Range; title: string | null }
+interface FunctionSummary { name: string; path: string; range: Range; title: string | null } // functions, classes and generics
 ```
 
 Resolution rules:
 
 - A name resolves to the definition in the **same file** first, otherwise the
   definition in the lexicographically smallest path. Within one file the first
-  definition wins. Only top-level `name <- function`, `name = function`,
-  `name <<- function`, and the parenthesised right-assignments
-  `(function(...) ...) -> name` / `->> name` count. (Unparenthesised
+  definition wins. Plain functions are the top-level `name <- function`,
+  `name = function`, `name <<- function`, and the parenthesised
+  right-assignments `(function(...) ...) -> name` / `->> name`. (Unparenthesised
   `function(x) x -> name` parses, as in R, as a function whose body assigns.)
+- **Object-oriented definitions** (top level, recognised statically; nothing
+  is evaluated). Arguments are bound with R's matching rules, so named and
+  positional forms agree; S7's `:=` adds `name = "<lhs>"`, so positional
+  arguments shift (`f := new_generic("x")` has `dispatch_args = "x"`).
+  `pkg::` prefixes on the constructor are ignored.
+  - S4: `setGeneric(name, def)` with a `def` is a generic named by `name`.
+    `setClass(Class, ...)` is a class; assigned (`X <- setClass(...)`) it is
+    callable as `X(...)`, otherwise its usage is `new("Class", ...)`. Its
+    arguments are slots from `representation()` and `slots =`, after those of
+    a workspace parent named by `contains` or an unnamed `representation()`
+    string; defaults come from `prototype`. `setMethod(f, signature, ...)` is a
+    method of `f`.
+  - S7: `X <- new_class(...)` / `X := new_class(...)` is a callable class whose
+    arguments are its parent's (when the parent is a workspace class) then its
+    own properties, defaults from `new_property(default =)`; below a class with
+    a custom `constructor` they are `...` and its own properties, and with its
+    own `constructor` they are that function's. `new_generic(name,
+    dispatch_args, fun)` is a generic taking `fun`'s formals, or
+    `dispatch_args` then `...`. `method(generic, signature) <- function` is a
+    method; `<- NULL` is not.
+  - R6: `X <- R6Class(...)` is a class, called through `X$new()` with the
+    formals of the first `initialize` in its `inherit` chain. Members come from
+    `public`, `private` and `active` lists, with `#'` blocks on the members.
+  - Docs: classes use their block plus `@param`, then `@slot` (S4) or `@prop`
+    (S7), for constructor arguments, searched from the class up its chain;
+    R6 classes use `@field` and `initialize`'s `@param`. A generic's page
+    lists the workspace methods registered for it, and a generic with only
+    documented methods is still documented. The manifest overlay is not used
+    for these definitions, so the enhanced tier does not change them.
+- **R6 members** (`x$m`, `x$m(...)` with `x` a plain identifier): `Class$new`
+  is the constructor; `self$m` and `private$m` inside a class body are its
+  public or private members, and `super$m` its parent's; otherwise `x` must
+  have been assigned `x <- Class$new(...)` (or `=`, `<<-`) earlier in the
+  innermost enclosing statement list that assigns it, and a function
+  parameter named `x` stops the search. Members are found up the `inherit`
+  chain. Any other `x` gives `None`.
 - Unknown callees, `pkg::fn` callees and undocumented functions return `None`
   (Ark handles them). An undocumented function *with* a manifest topic is
   documented.

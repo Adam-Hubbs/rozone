@@ -33,7 +33,7 @@ pub struct Resolved {
 }
 
 impl Resolved {
-    fn empty(source: DocSource) -> Self {
+    pub(crate) fn empty(source: DocSource) -> Self {
         Self {
             title: None,
             description: None,
@@ -114,6 +114,18 @@ impl Index {
         }
         let block = def.block().filter(|b| b.has_content())?;
         Some(self.resolve_static(def, block, &mut Walk::default(), true))
+    }
+
+    /// The static documentation of `def`'s own block, or `None` if it has
+    /// none. Classes and generics use it for everything but their arguments
+    /// unless `with_params`.
+    pub(crate) fn resolve_fields<'a>(
+        &'a self,
+        def: DefRef<'a>,
+        with_params: bool,
+    ) -> Option<Resolved> {
+        let block = def.block().filter(|b| b.has_content())?;
+        Some(self.resolve_static(def, block, &mut Walk::default(), with_params))
     }
 
     /// `None` if undocumented, otherwise the title if there is one. Avoids a

@@ -7,8 +7,9 @@ use air_r_syntax::RSyntaxNode;
 use biome_rowan::TextSize;
 
 use crate::call::{IdentAt, Usage, call_at, ident_at, match_args};
-use crate::extract::{Definition, Formal, doc_canonical, parse};
+use crate::extract::{DefKind, Definition, Formal, Member, MethodDef, doc_canonical, parse};
 use crate::manifest::Manifest;
+use crate::resolve::Resolved;
 use crate::roxygen::Block;
 use crate::text::TextMap;
 use crate::{
@@ -23,6 +24,8 @@ pub(crate) struct FileMaps {
     pub by_name: HashMap<String, Vec<usize>>,
     pub by_rdname: HashMap<String, Vec<usize>>,
     pub by_describe: HashMap<String, Vec<usize>>,
+    /// S4 and S7 methods, by generic name; indices into `FileEntry::methods`.
+    pub by_generic: HashMap<String, Vec<usize>>,
 }
 
 /// A parsed file. The syntax tree is kept so queries never re-parse.
@@ -35,6 +38,7 @@ pub(crate) struct FileEntry {
     pub map: TextMap,
     pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
+    pub methods: Vec<MethodDef>,
 }
 
 impl FileEntry {
@@ -69,6 +73,12 @@ impl FileEntry {
                         .push(i);
                 }
             }
+            for (i, method) in self.methods.iter().enumerate() {
+                maps.by_generic
+                    .entry(method.generic.clone())
+                    .or_default()
+                    .push(i);
+            }
             maps
         })
     }
@@ -83,6 +93,7 @@ impl FileEntry {
             map: TextMap::new(text),
             root: parsed.root,
             defs: parsed.defs,
+            methods: parsed.methods,
         }
     }
 }
@@ -96,6 +107,43 @@ pub(crate) struct DefRef<'a> {
 }
 
 pub(crate) type DefKey<'a> = (&'a str, usize);
+
+/// What a name under the cursor refers to.
+#[derive(Clone, Copy)]
+pub(crate) enum Target<'a> {
+    Def(DefRef<'a>),
+    /// `Class$new` for an R6 class.
+    New(DefRef<'a>),
+    /// An R6 member reached through `x$name`. `owner` is the class in the
+    /// inheritance chain that declares it.
+    Member {
+        class: DefRef<'a>,
+        owner: DefRef<'a>,
+        member: &'a Member,
+    },
+}
+
+/// Everything hover, signature help and the documentation page show.
+pub(crate) struct Page<'a> {
+    pub name: String,
+    pub path: &'a str,
+    pub formals: Vec<Formal>,
+    /// Replaces the `name(formals)` usage line.
+    pub usage: Option<String>,
+    pub doc: Resolved,
+    /// Whether `name(...)` is a call to it; an R6 class is called through `$new()`.
+    pub callable: bool,
+    /// The definition, for the "also defined in" note.
+    pub def: Option<DefRef<'a>>,
+}
+
+impl Page<'_> {
+    fn usage(&self) -> String {
+        self.usage
+            .clone()
+            .unwrap_or_else(|| markdown::signature(&self.name, &self.formals).label)
+    }
+}
 
 impl<'a> DefRef<'a> {
     pub fn def(&self) -> &'a Definition {
@@ -123,6 +171,7 @@ pub struct Index {
     by_name: HashMap<String, BTreeSet<String>>,
     by_rdname: HashMap<String, BTreeSet<(String, usize)>>,
     by_describe: HashMap<String, BTreeSet<(String, usize)>>,
+    by_generic: HashMap<String, BTreeSet<(String, usize)>>,
     manifest: Option<Manifest>,
 }
 
@@ -159,6 +208,7 @@ impl Index {
         for (target, source) in [
             (&mut self.by_rdname, &maps.by_rdname),
             (&mut self.by_describe, &maps.by_describe),
+            (&mut self.by_generic, &maps.by_generic),
         ] {
             for (key, idxs) in source {
                 target
@@ -182,6 +232,7 @@ impl Index {
         for (target, source) in [
             (&mut self.by_rdname, &maps.by_rdname),
             (&mut self.by_describe, &maps.by_describe),
+            (&mut self.by_generic, &maps.by_generic),
         ] {
             for (key, idxs) in source {
                 if let Some(set) = target.get_mut(key) {
@@ -225,24 +276,16 @@ impl Index {
         let file = self.files.get(path)?;
         let byte = TextSize::from(file.map.to_byte(offset));
         let ident = ident_at(&file.root, byte)?;
-        let (def, kind) = self.hover_target(path, file, &ident)?;
-        let doc = self.resolve(def)?;
-        let signature = markdown::signature(&def.def().name, def.formals());
-        let markdown = self.with_duplicate_note(
-            def,
-            markdown::help_page(
-                &def.def().name,
-                file_label(def.path),
-                &signature.label,
-                &doc,
-            ),
-        );
+        let (path, _) = self.files.get_key_value(path)?;
+        let (target, kind) = self.hover_target(path, file, &ident)?;
+        let page = self.page(target)?;
+        let markdown = self.page_markdown(&page, matches!(target, Target::Def(_)));
         Some(Hover {
-            name: def.def().name.clone(),
+            name: page.name,
             kind,
             markdown,
             range: self.range_in(file, ident.range),
-            source: doc.source,
+            source: page.doc.source,
         })
     }
 
@@ -251,18 +294,36 @@ impl Index {
         path: &'a str,
         file: &'a FileEntry,
         ident: &IdentAt,
-    ) -> Option<(DefRef<'a>, HoverKind)> {
+    ) -> Option<(Target<'a>, HoverKind)> {
         match ident.usage {
             Usage::AssignTarget => {
                 let idx = file
                     .defs
                     .binary_search_by_key(&ident.range.start(), |d| d.name_range.start())
                     .ok()?;
-                let path = self.files.get_key_value(path)?.0.as_str();
-                Some((DefRef { path, file, idx }, HoverKind::Definition))
+                Some((
+                    Target::Def(DefRef { path, file, idx }),
+                    HoverKind::Definition,
+                ))
             }
-            Usage::Callee => Some((self.lookup(&ident.name, Some(path))?, HoverKind::Call)),
-            Usage::Bare => Some((self.lookup(&ident.name, Some(path))?, HoverKind::Identifier)),
+            Usage::Callee => Some((
+                Target::Def(self.lookup(&ident.name, Some(path))?),
+                HoverKind::Call,
+            )),
+            Usage::Bare => Some((
+                Target::Def(self.lookup(&ident.name, Some(path))?),
+                HoverKind::Identifier,
+            )),
+            Usage::Member | Usage::MemberCallee => {
+                let target =
+                    self.member_target(path, file, &ident.name, ident.receiver.as_ref()?)?;
+                let kind = if ident.usage == Usage::MemberCallee {
+                    HoverKind::Call
+                } else {
+                    HoverKind::Identifier
+                };
+                Some((target, kind))
+            }
         }
     }
 
@@ -270,47 +331,85 @@ impl Index {
         let file = self.files.get(path)?;
         let byte = TextSize::from(file.map.to_byte(offset));
         let site = call_at(&file.root, byte)?;
-        let def = self.lookup(&site.callee, Some(path))?;
-        let doc = self.resolve(def)?;
-        let formals = def.formals();
-        let signature = markdown::signature(&def.def().name, formals);
-
-        let names: Vec<&str> = formals.iter().map(|f| f.name.as_str()).collect();
+        let (path, _) = self.files.get_key_value(path)?;
+        let target = match &site.receiver {
+            None => Target::Def(self.lookup(&site.callee, Some(path))?),
+            Some(receiver) => self.member_target(path, file, &site.callee, receiver)?,
+        };
+        let page = self.page(target)?;
+        if !page.callable {
+            return None;
+        }
+        let signature = markdown::signature(&page.name, &page.formals);
+        let names: Vec<&str> = page.formals.iter().map(|f| f.name.as_str()).collect();
         let active = match_args(&names, &site.arg_names)
             .get(site.active_arg)
             .copied()
             .flatten();
         Some(SignatureHelp {
-            name: def.def().name.clone(),
-            parameters: formals
+            parameters: page
+                .formals
                 .iter()
                 .zip(&signature.params)
                 .map(|(formal, &label)| ParameterInfo {
                     label,
-                    documentation: markdown::param_doc(&doc, &formal.name),
+                    documentation: markdown::param_doc(&page.doc, &formal.name),
                 })
                 .collect(),
             label: signature.label,
-            documentation: markdown::summary(&doc),
+            documentation: markdown::summary(&page.doc),
             active_parameter: active.map(|i| i as u32),
-            source: doc.source,
+            source: page.doc.source,
+            name: page.name,
         })
     }
 
     /// The full documentation page for `name`, resolved as from `from_path`.
+    /// `Class$member` and `Class$new`, the names R6 hovers report, work too.
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String> {
-        let def = self.lookup(name, from_path)?;
-        let doc = self.resolve(def)?;
-        let signature = markdown::signature(&def.def().name, def.formals());
-        Some(self.with_duplicate_note(
-            def,
-            markdown::help_page(
-                &def.def().name,
-                file_label(def.path),
-                &signature.label,
-                &doc,
-            ),
-        ))
+        let target = match self.lookup(name, from_path) {
+            Some(def) => Target::Def(def),
+            None => {
+                let (class, member) = name.split_once('$')?;
+                self.member_by_name(class, member, from_path)?
+            }
+        };
+        let page = self.page(target)?;
+        Some(self.page_markdown(&page, matches!(target, Target::Def(_))))
+    }
+
+    /// What `target` shows, or `None` if it is undocumented.
+    pub(crate) fn page<'a>(&'a self, target: Target<'a>) -> Option<Page<'a>> {
+        match target {
+            Target::Def(def) if def.def().kind == DefKind::Function => {
+                let doc = self.resolve(def)?;
+                Some(Page {
+                    name: def.def().name.clone(),
+                    path: def.path,
+                    formals: def.formals().to_vec(),
+                    usage: None,
+                    doc,
+                    callable: true,
+                    def: Some(def),
+                })
+            }
+            Target::Def(def) => self.oo_page(def),
+            Target::New(class) => self.r6_page(class, true),
+            Target::Member {
+                class,
+                owner,
+                member,
+            } => self.member_page(class, owner, member),
+        }
+    }
+
+    fn page_markdown(&self, page: &Page<'_>, note_duplicates: bool) -> String {
+        let markdown =
+            markdown::help_page(&page.name, file_label(page.path), &page.usage(), &page.doc);
+        match page.def {
+            Some(def) if note_duplicates => self.with_duplicate_note(def, markdown),
+            _ => markdown,
+        }
     }
 
     /// Same-named definitions are separate functions; say so when `def` has
@@ -343,7 +442,7 @@ impl Index {
         format!("{page}\n\n*Also defined in:* {listed}")
     }
 
-    /// Every documented function in the workspace, ordered by path and position.
+    /// Every documented definition in the workspace, ordered by path and position.
     pub fn documented_functions(&self) -> Vec<FunctionSummary> {
         let mut paths: Vec<&String> = self.files.keys().collect();
         paths.sort();
@@ -352,7 +451,12 @@ impl Index {
             let file = &self.files[path];
             for idx in 0..file.defs.len() {
                 let def = DefRef { path, file, idx };
-                if let Some(title) = self.summary_title(def) {
+                let title = if def.def().kind == DefKind::Function {
+                    self.summary_title(def)
+                } else {
+                    self.oo_page(def).map(|page| page.doc.title)
+                };
+                if let Some(title) = title {
                     out.push(FunctionSummary {
                         name: def.def().name.clone(),
                         path: path.clone(),
@@ -413,8 +517,23 @@ impl Index {
     pub(crate) fn manifest(&self) -> Option<&Manifest> {
         self.manifest.as_ref()
     }
+
+    /// Every S4 or S7 method registered for `generic`, ordered by path and position.
+    pub(crate) fn methods_of(
+        &self,
+        generic: &str,
+    ) -> impl Iterator<Item = (&FileEntry, &MethodDef)> {
+        self.by_generic
+            .get(generic)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, idx)| {
+                let file = self.files.get(path)?;
+                Some((file, file.methods.get(*idx)?))
+            })
+    }
 }
 
-fn file_label(path: &str) -> &str {
+pub(crate) fn file_label(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)
 }

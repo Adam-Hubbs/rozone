@@ -1,0 +1,210 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"s4.R\")"
+---
+# documented functions
+Shape 93..100 title=Some("A shape")
+Circle 199..205 title=Some("A circle")
+area 412..418 title=Some("Area of a shape")
+perimeter 674..685 title=None
+
+# documentation(Shape)
+_Shape {s4.R}_
+
+## A shape
+
+------
+
+### Description
+
+The parent of every shape.
+
+### Usage
+
+```r
+new("Shape", name)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | A label for the shape. |
+
+# hover at definition of Shape
+hover: none
+
+# documentation(Circle)
+_Circle {s4.R}_
+
+## A circle
+
+------
+
+*Inherits from `Shape`.*
+
+### Usage
+
+```r
+Circle(name, r = 1)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | A label for the shape. |
+| `r` | The radius. |
+
+# hover at definition of Circle
+hover: Definition Circle range=199..205 source=Static
+  | _Circle {s4.R}_
+  | 
+  | ## A circle
+  | 
+  | ------
+  | 
+  | *Inherits from `Shape`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle(name, r = 1)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | A label for the shape. |
+  | | `r` | The radius. |
+
+# documentation(area)
+_area {s4.R}_
+
+## Area of a shape
+
+------
+
+### Usage
+
+```r
+area(shape, ...)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `shape` | A shape. |
+| `...` | Unused. |
+
+### Value
+
+A number.
+
+### Methods
+
+- `area(<Circle>)`: Area of a circle
+- `area(<ANY>)`: Area of anything else
+
+# hover at definition of area
+hover: none
+
+# documentation(perimeter)
+_perimeter {s4.R}_
+
+------
+
+### Usage
+
+```r
+perimeter(shape)
+```
+
+### Methods
+
+- `perimeter(<Circle>)`: Perimeter of a circle
+
+# hover at definition of perimeter
+hover: none
+
+# 37:8  c1 <- Ci¦rcle(r = 2, name = "unit")
+hover: Call Circle range=833..839 source=Static
+  | _Circle {s4.R}_
+  | 
+  | ## A circle
+  | 
+  | ------
+  | 
+  | *Inherits from `Shape`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle(name, r = 1)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | A label for the shape. |
+  | | `r` | The radius. |
+signature: none
+
+# 37:20  c1 <- Circle(r = 2, ¦name = "unit")
+hover: none
+signature: Circle(name, r = 1) active=0 (name)
+
+# 38:2  ar¦ea(c1, )
+hover: Call area range=862..866 source=Static
+  | _area {s4.R}_
+  | 
+  | ## Area of a shape
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | area(shape, ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `shape` | A shape. |
+  | | `...` | Unused. |
+  | 
+  | ### Value
+  | 
+  | A number.
+  | 
+  | ### Methods
+  | 
+  | - `area(<Circle>)`: Area of a circle
+  | - `area(<ANY>)`: Area of anything else
+signature: none
+
+# 38:9  area(c1, ¦)
+hover: none
+signature: area(shape, ...) active=1 (...)
+
+# 39:5  perim¦eter(c1)
+hover: Call perimeter range=873..882 source=Static
+  | _perimeter {s4.R}_
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | perimeter(shape)
+  | ```
+  | 
+  | ### Methods
+  | 
+  | - `perimeter(<Circle>)`: Perimeter of a circle
+signature: none

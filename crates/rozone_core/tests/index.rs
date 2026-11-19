@@ -708,3 +708,68 @@ mod reverse_maps {
         assert!(page.contains("Level 40"));
     }
 }
+
+const SHAPES: &str = "#' Area\n#' @param shape A shape.\nsetGeneric(\"area\", function(shape) standardGeneric(\"area\"))\n\n#' Person\nPerson <- R6::R6Class(\"Person\", public = list(\n  #' @description Say hi.\n  greet = function() 1\n))\n";
+
+#[test]
+fn methods_and_classes_resolve_across_files() {
+    let methods = "#' Area of a circle\nsetMethod(\"area\", \"Circle\", function(shape) 1)\n";
+    let user = "area(x)\np <- Person$new()\np$greet()\n";
+    let mut index = index_of(&[("/a.R", SHAPES), ("/b.R", methods), ("/user.R", user)]);
+    let page = index
+        .hover("/user.R", offset_of(user, "area"))
+        .unwrap()
+        .markdown;
+    assert!(
+        page.contains("- `area(<Circle>)`: Area of a circle"),
+        "{page}"
+    );
+    let greet = index.hover("/user.R", offset_of(user, "greet")).unwrap();
+    assert_eq!(
+        (greet.name.as_str(), greet.kind),
+        ("Person$greet", HoverKind::Call)
+    );
+
+    index.remove_file("/b.R");
+    let page = index
+        .hover("/user.R", offset_of(user, "area"))
+        .unwrap()
+        .markdown;
+    assert!(!page.contains("Methods"), "{page}");
+}
+
+#[test]
+fn a_reassigned_receiver_is_no_longer_known() {
+    let user = "p <- Person$new()\np <- list()\np$greet()\n";
+    let index = index_of(&[("/a.R", SHAPES), ("/user.R", user)]);
+    assert!(index.hover("/user.R", offset_of(user, "greet")).is_none());
+    assert!(
+        index
+            .signature_help("/user.R", offset_of(user, "greet()") + 6)
+            .is_none()
+    );
+}
+
+#[test]
+fn an_r6_class_is_not_called_by_its_name() {
+    let user = "Person()\n";
+    let index = index_of(&[("/a.R", SHAPES), ("/user.R", user)]);
+    assert!(index.signature_help("/user.R", 7).is_none());
+    assert_eq!(index.hover("/user.R", 1).unwrap().name, "Person");
+}
+
+#[test]
+fn documentation_accepts_the_names_r6_hovers_report() {
+    let index = index_of(&[("/a.R", SHAPES)]);
+    let page = index.documentation("Person$greet", Some("/a.R")).unwrap();
+    assert_eq!(page.lines().next(), Some("_Person$greet {a.R}_"));
+    assert!(page.contains("Say hi."), "{page}");
+    assert!(
+        index
+            .documentation("Person$new", None)
+            .unwrap()
+            .contains("Person$new()")
+    );
+    assert!(index.documentation("Person$missing", None).is_none());
+    assert!(index.documentation("area$x", None).is_none());
+}
