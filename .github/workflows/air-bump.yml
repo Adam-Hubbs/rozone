@@ -1,7 +1,7 @@
 name: Bump Air
 
-# Keeps the pinned posit-dev/air parser and its lionel-/biome fork in step with
-# Air's main branch (the Jarl #762 pattern). Opens a pull request; never pushes
+# Keeps the pinned posit-dev/air parser, and the biome_rowan revision Air's
+# Cargo.lock uses, in step with Air's main branch (the Jarl #762 pattern). Opens a pull request; never pushes
 # to the default branch.
 
 on:
@@ -22,7 +22,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Resolve Air main and its biome fork revision
+      - name: Resolve Air main and its biome_rowan source
         id: revs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,32 +31,37 @@ jobs:
           air_rev=$(git ls-remote https://github.com/posit-dev/air.git refs/heads/main | cut -f1)
           gh api "repos/posit-dev/air/contents/Cargo.lock?ref=${air_rev}" \
             -H "Accept: application/vnd.github.raw" > air-Cargo.lock
-          biome_rev=$(python3 -c '
+          read -r biome_repo biome_rev < <(python3 -c '
           import re, sys, tomllib
           lock = tomllib.load(open("air-Cargo.lock", "rb"))
           for pkg in lock["package"]:
-              m = re.search(r"lionel-/biome\?rev=([0-9a-f]{40})", pkg.get("source", ""))
+              if pkg["name"] != "biome_rowan":
+                  continue
+              m = re.fullmatch(r"git\+(https://[^?#]+)\?rev=([0-9a-f]{40})#[0-9a-f]+", pkg.get("source", ""))
               if m:
-                  print(m.group(1))
+                  print(m.group(1), m.group(2))
                   break
           else:
-              sys.exit("no lionel-/biome rev in Air Cargo.lock")
+              sys.exit("no git-pinned biome_rowan in Air Cargo.lock")
           ')
           rm air-Cargo.lock
           echo "air_rev=${air_rev}" >> "$GITHUB_OUTPUT"
+          echo "biome_repo=${biome_repo}" >> "$GITHUB_OUTPUT"
           echo "biome_rev=${biome_rev}" >> "$GITHUB_OUTPUT"
 
       - name: Pin revisions and update the lockfile
         env:
           AIR_REV: ${{ steps.revs.outputs.air_rev }}
+          BIOME_REPO: ${{ steps.revs.outputs.biome_repo }}
           BIOME_REV: ${{ steps.revs.outputs.biome_rev }}
         run: |
           set -euo pipefail
           sed -i -E \
             -e "/^(air_r_parser|air_r_syntax) = /s/rev = \"[0-9a-f]{40}\"/rev = \"${AIR_REV}\"/" \
-            -e "/^biome_rowan = /s/rev = \"[0-9a-f]{40}\"/rev = \"${BIOME_REV}\"/" \
+            -e "s|^biome_rowan = .*|biome_rowan = { git = \"${BIOME_REPO}\", rev = \"${BIOME_REV}\" }|" \
             Cargo.toml
-          cargo update -p air_r_parser -p air_r_syntax -p biome_rowan
+          cargo update -p air_r_parser -p air_r_syntax
+          cargo update --manifest-path fuzz/Cargo.toml -p air_r_parser -p air_r_syntax
 
       - name: Test
         run: cargo test --workspace
@@ -69,12 +74,13 @@ jobs:
           add-paths: |
             Cargo.toml
             Cargo.lock
+            fuzz/Cargo.lock
           commit-message: "Bump Air parser to ${{ steps.revs.outputs.air_rev }}"
-          title: "Bump Air parser and biome fork"
+          title: "Bump Air parser"
           body: |
             Automated weekly bump.
 
             - `air_r_parser`, `air_r_syntax`: `posit-dev/air` at `${{ steps.revs.outputs.air_rev }}`
-            - `biome_rowan`: `lionel-/biome` at `${{ steps.revs.outputs.biome_rev }}` (the rev Air's `Cargo.lock` pins)
+            - `biome_rowan`: `${{ steps.revs.outputs.biome_repo }}` at `${{ steps.revs.outputs.biome_rev }}` (the rev Air's `Cargo.lock` pins)
 
             `cargo test --workspace` passed in this workflow run.
