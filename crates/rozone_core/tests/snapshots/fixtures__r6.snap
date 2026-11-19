@@ -1,0 +1,371 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"r6.R\")"
+---
+# documented functions
+Person 69..75 title=Some("A person")
+Student 848..855 title=Some("A student")
+
+# documentation(Person)
+_Person {r6.R}_
+
+## A person
+
+------
+
+### Description
+
+Someone with a name.
+
+### Usage
+
+```r
+Person$new(name, greeting = "Hi")
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | Their name. |
+| `greeting` | How they say hello. |
+
+### Fields
+
+- `name`: Their name.
+
+### Active bindings
+
+- `shout`: The name in capitals.
+
+### Methods
+
+- `$new()`: Make a person.
+- `$greet()`: Say hello.
+
+# hover at definition of Person
+hover: Definition Person range=69..75 source=Static
+  | _Person {r6.R}_
+  | 
+  | ## A person
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Someone with a name.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$new(name, greeting = "Hi")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | Their name. |
+  | | `greeting` | How they say hello. |
+  | 
+  | ### Fields
+  | 
+  | - `name`: Their name.
+  | 
+  | ### Active bindings
+  | 
+  | - `shout`: The name in capitals.
+  | 
+  | ### Methods
+  | 
+  | - `$new()`: Make a person.
+  | - `$greet()`: Say hello.
+
+# documentation(Student)
+_Student {r6.R}_
+
+## A student
+
+------
+
+*Inherits from `Person`.*
+
+### Usage
+
+```r
+Student$new(name, greeting = "Hi")
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | Their name. |
+| `greeting` | How they say hello. |
+
+### Fields
+
+- `school`: Where they study.
+
+### Methods
+
+- `$greet()`: Say hello and name the school.
+
+# hover at definition of Student
+hover: Definition Student range=848..855 source=Static
+  | _Student {r6.R}_
+  | 
+  | ## A student
+  | 
+  | ------
+  | 
+  | *Inherits from `Person`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Student$new(name, greeting = "Hi")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | Their name. |
+  | | `greeting` | How they say hello. |
+  | 
+  | ### Fields
+  | 
+  | - `school`: Where they study.
+  | 
+  | ### Methods
+  | 
+  | - `$greet()`: Say hello and name the school.
+
+# 47:14        super$gr¦eet(to)
+hover: Call Person$greet range=1033..1038 source=Static
+  | _Person$greet {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Person`.*
+  | 
+  | ### Description
+  | 
+  | Say hello.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$greet(to = "you")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `to` | Who to greet. |
+  | 
+  | ### Value
+  | 
+  | The greeting, invisibly.
+signature: none
+
+# 48:28        cat("I go to", self$sc¦hool, "\n")
+hover: Identifier Student$school range=1069..1075 source=Static
+  | _Student$school {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Student`.*
+  | 
+  | ### Description
+  | 
+  | Where they study.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Student$school
+  | ```
+signature: none
+
+# 53:9  p <- Pers¦on$new("Al", )
+hover: Identifier Person range=1101..1107 source=Static
+  | _Person {r6.R}_
+  | 
+  | ## A person
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Someone with a name.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$new(name, greeting = "Hi")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | Their name. |
+  | | `greeting` | How they say hello. |
+  | 
+  | ### Fields
+  | 
+  | - `name`: Their name.
+  | 
+  | ### Active bindings
+  | 
+  | - `shout`: The name in capitals.
+  | 
+  | ### Methods
+  | 
+  | - `$new()`: Make a person.
+  | - `$greet()`: Say hello.
+signature: none
+
+# 53:14  p <- Person$ne¦w("Al", )
+hover: Call Person$new range=1108..1111 source=Static
+  | _Person$new {r6.R}_
+  | 
+  | ## A person
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Someone with a name.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$new(name, greeting = "Hi")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | Their name. |
+  | | `greeting` | How they say hello. |
+  | 
+  | ### Fields
+  | 
+  | - `name`: Their name.
+  | 
+  | ### Active bindings
+  | 
+  | - `shout`: The name in capitals.
+  | 
+  | ### Methods
+  | 
+  | - `$new()`: Make a person.
+  | - `$greet()`: Say hello.
+signature: none
+
+# 53:22  p <- Person$new("Al", ¦)
+hover: none
+signature: Person$new(name, greeting = "Hi") active=1 (greeting = "Hi")
+
+# 54:5  p$gre¦et()
+hover: Call Person$greet range=1122..1127 source=Static
+  | _Person$greet {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Person`.*
+  | 
+  | ### Description
+  | 
+  | Say hello.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$greet(to = "you")
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `to` | Who to greet. |
+  | 
+  | ### Value
+  | 
+  | The greeting, invisibly.
+signature: none
+
+# 54:8  p$greet(¦)
+hover: none
+signature: Person$greet(to = "you") active=0 (to = "you")
+
+# 55:4  p$na¦me
+hover: Identifier Person$name range=1132..1136 source=Static
+  | _Person$name {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Person`.*
+  | 
+  | ### Description
+  | 
+  | Their name.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$name
+  | ```
+signature: none
+
+# 56:4  p$sh¦out
+hover: Identifier Person$shout range=1139..1144 source=Static
+  | _Person$shout {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Person`.*
+  | 
+  | ### Description
+  | 
+  | The name in capitals.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Person$shout
+  | ```
+signature: none
+
+# 57:17  s <- Student$new(¦)
+hover: none
+signature: Student$new(name, greeting = "Hi") active=0 (name)
+
+# 58:5  s$gre¦et()
+hover: Call Student$greet range=1166..1171 source=Static
+  | _Student$greet {r6.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Student`.*
+  | 
+  | ### Description
+  | 
+  | Say hello and name the school.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Student$greet(to = "you")
+  | ```
+signature: none
+
+# 60:27  helper <- function(p) p$gre¦et()
+hover: none
+signature: none

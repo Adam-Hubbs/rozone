@@ -33,6 +33,10 @@ pub struct Block {
     pub description: Option<String>,
     pub details: Option<String>,
     pub params: Vec<ParamDoc>,
+    /// S4 `@slot`, R6 `@field` and S7 `@prop` entries.
+    pub slots: Vec<ParamDoc>,
+    pub fields: Vec<ParamDoc>,
+    pub props: Vec<ParamDoc>,
     pub returns: Option<String>,
     pub examples: Option<String>,
     pub example_files: Vec<String>,
@@ -59,6 +63,9 @@ impl Block {
             || self.description.is_some()
             || self.details.is_some()
             || !self.params.is_empty()
+            || !self.slots.is_empty()
+            || !self.fields.is_empty()
+            || !self.props.is_empty()
             || self.returns.is_some()
             || self.examples.is_some()
             || !self.example_files.is_empty()
@@ -73,10 +80,42 @@ impl Block {
     }
 
     pub fn param(&self, name: &str) -> Option<&str> {
-        self.params
-            .iter()
-            .find(|param| param.names.iter().any(|n| n == name))
-            .map(|param| param.text.as_str())
+        named_doc(&self.params, name)
+    }
+
+    pub fn slot(&self, name: &str) -> Option<&str> {
+        named_doc(&self.slots, name)
+    }
+
+    pub fn field(&self, name: &str) -> Option<&str> {
+        named_doc(&self.fields, name)
+    }
+
+    pub fn prop(&self, name: &str) -> Option<&str> {
+        named_doc(&self.props, name)
+    }
+}
+
+fn named_doc<'a>(docs: &'a [ParamDoc], name: &str) -> Option<&'a str> {
+    docs.iter()
+        .find(|doc| doc.names.iter().any(|n| n == name))
+        .map(|doc| doc.text.as_str())
+}
+
+impl Block {
+    /// The one-line summary of a method or member block: its title, its
+    /// `@describeIn` text, else the first paragraph of its description.
+    pub fn summary_line(&self) -> Option<String> {
+        let describe = self
+            .describe_in
+            .as_ref()
+            .map(|d| d.description.clone())
+            .filter(|d| !d.is_empty());
+        self.title.clone().or(describe).or_else(|| {
+            let description = self.description.as_ref()?;
+            let first = description.split("\n\n").next()?.trim();
+            (!first.is_empty()).then(|| first.split_whitespace().collect::<Vec<_>>().join(" "))
+        })
     }
 }
 
@@ -201,20 +240,10 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
         }
         "description" => block.description = non_empty(),
         "details" => block.details = non_empty(),
-        "param" => {
-            let (names, text) = split_first_word(content);
-            let names: Vec<String> = names
-                .split(',')
-                .map(|name| name.trim().trim_matches('`').to_string())
-                .filter(|name| !name.is_empty())
-                .collect();
-            if !names.is_empty() && !text.is_empty() {
-                block.params.push(ParamDoc {
-                    names,
-                    text: text.to_string(),
-                });
-            }
-        }
+        "param" => block.params.extend(named_entry(content)),
+        "slot" => block.slots.extend(named_entry(content)),
+        "field" => block.fields.extend(named_entry(content)),
+        "prop" => block.props.extend(named_entry(content)),
         "return" | "returns" => {
             if block.returns.is_none() {
                 block.returns = non_empty();
@@ -268,6 +297,20 @@ fn apply_tag(block: &mut Block, tag: &str, content: &str) {
         "noMd" => block.md = Some(false),
         _ => {}
     }
+}
+
+/// `name text` or `a,b text`, as `@param` and its OO siblings take.
+fn named_entry(content: &str) -> Option<ParamDoc> {
+    let (names, text) = split_first_word(content);
+    let names: Vec<String> = names
+        .split(',')
+        .map(|name| name.trim().trim_matches('`').to_string())
+        .filter(|name| !name.is_empty())
+        .collect();
+    (!names.is_empty() && !text.is_empty()).then(|| ParamDoc {
+        names,
+        text: text.to_string(),
+    })
 }
 
 fn split_first_word(content: &str) -> (&str, &str) {

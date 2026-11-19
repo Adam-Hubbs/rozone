@@ -1,0 +1,373 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"refclass.R\")"
+---
+# documented functions
+Account 110..117 title=Some("A bank account")
+Savings 735..742 title=Some("A savings account")
+
+# documentation(Account)
+_Account {refclass.R}_
+
+## A bank account
+
+------
+
+### Description
+
+Tracks a balance.
+
+### Usage
+
+```r
+Account(owner, balance)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `owner` | Who holds it. |
+| `balance` | The amount held. |
+
+### Fields
+
+- `owner`: Who holds it.
+- `balance`: The amount held.
+
+### Methods
+
+- `$deposit()`: Add money to the account.
+- `$withdraw()`: Take money out.
+- `$report()`: Print the balance.
+
+# hover at definition of Account
+hover: Definition Account range=110..117 source=Static
+  | _Account {refclass.R}_
+  | 
+  | ## A bank account
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Tracks a balance.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account(owner, balance)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `owner` | Who holds it. |
+  | | `balance` | The amount held. |
+  | 
+  | ### Fields
+  | 
+  | - `owner`: Who holds it.
+  | - `balance`: The amount held.
+  | 
+  | ### Methods
+  | 
+  | - `$deposit()`: Add money to the account.
+  | - `$withdraw()`: Take money out.
+  | - `$report()`: Print the balance.
+
+# documentation(Savings)
+_Savings {refclass.R}_
+
+## A savings account
+
+------
+
+*Inherits from `Account`.*
+
+### Usage
+
+```r
+Savings(..., rate = 0.01)
+```
+
+### Fields
+
+- `rate`: The interest rate.
+
+### Methods
+
+- `$new()`: Open an account with an interest rate.
+
+# hover at definition of Savings
+hover: Definition Savings range=735..742 source=Static
+  | _Savings {refclass.R}_
+  | 
+  | ## A savings account
+  | 
+  | ------
+  | 
+  | *Inherits from `Account`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Savings(..., rate = 0.01)
+  | ```
+  | 
+  | ### Fields
+  | 
+  | - `rate`: The interest rate.
+  | 
+  | ### Methods
+  | 
+  | - `$new()`: Open an account with an interest rate.
+
+# 19:21        balance <<- bal¦ance - x
+hover: Identifier Account$balance range=502..509 source=Static
+  | _Account$balance {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | The amount held.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$balance
+  | ```
+signature: none
+
+# 20:10        depo¦sit(0)
+hover: Call Account$deposit range=520..527 source=Static
+  | _Account$deposit {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | Add money to the account.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$deposit(x)
+  | ```
+signature: none
+
+# 21:16        .self$depo¦sit(0)
+hover: Call Account$deposit range=543..550 source=Static
+  | _Account$deposit {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | Add money to the account.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$deposit(x)
+  | ```
+signature: none
+
+# 29:26      cat(owner, "has", bala¦nce, "\n")
+hover: Identifier Account$balance range=655..662 source=Static
+  | _Account$balance {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | The amount held.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$balance
+  | ```
+signature: none
+
+# 47:10  a <- Accou¦nt(owner = "Al", balance = 10)
+hover: Call Account range=991..998 source=Static
+  | _Account {refclass.R}_
+  | 
+  | ## A bank account
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Tracks a balance.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account(owner, balance)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `owner` | Who holds it. |
+  | | `balance` | The amount held. |
+  | 
+  | ### Fields
+  | 
+  | - `owner`: Who holds it.
+  | - `balance`: The amount held.
+  | 
+  | ### Methods
+  | 
+  | - `$deposit()`: Add money to the account.
+  | - `$withdraw()`: Take money out.
+  | - `$report()`: Print the balance.
+signature: none
+
+# 47:13  a <- Account(¦owner = "Al", balance = 10)
+hover: none
+signature: Account(owner, balance) active=0 (owner)
+
+# 48:6  a$depo¦sit(5)
+hover: Call Account$deposit range=1029..1036 source=Static
+  | _Account$deposit {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | Add money to the account.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$deposit(x)
+  | ```
+signature: none
+
+# 48:10  a$deposit(¦5)
+hover: none
+signature: Account$deposit(x) active=0 (x)
+
+# 49:5  a$rep¦ort()
+hover: Call Account$report range=1042..1048 source=Static
+  | _Account$report {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | Print the balance.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$report()
+  | ```
+signature: none
+
+# 50:5  a$bal¦ance
+hover: Identifier Account$balance range=1053..1060 source=Static
+  | _Account$balance {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Member of `Account`.*
+  | 
+  | ### Description
+  | 
+  | The amount held.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$balance
+  | ```
+signature: none
+
+# 51:15  b <- Account$ne¦w()
+hover: Call Account$new range=1074..1077 source=Static
+  | _Account$new {refclass.R}_
+  | 
+  | ## A bank account
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Tracks a balance.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Account$new(owner, balance)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `owner` | Who holds it. |
+  | | `balance` | The amount held. |
+  | 
+  | ### Fields
+  | 
+  | - `owner`: Who holds it.
+  | - `balance`: The amount held.
+  | 
+  | ### Methods
+  | 
+  | - `$deposit()`: Add money to the account.
+  | - `$withdraw()`: Take money out.
+  | - `$report()`: Print the balance.
+signature: none
+
+# 51:17  b <- Account$new(¦)
+hover: none
+signature: Account$new(owner, balance) active=0 (owner)
+
+# 52:13  s <- Savings(¦)
+hover: none
+signature: Savings(..., rate = 0.01) active=0 (...)
+
+# 53:7  s$withd¦raw(1)
+hover: Call Savings$withdraw range=1097..1105 source=Static
+  | _Savings$withdraw {refclass.R}_
+  | 
+  | ------
+  | 
+  | *Inherited from `Account`.*
+  | 
+  | ### Description
+  | 
+  | Take money out.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Savings$withdraw(x)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | How much. |
+signature: none

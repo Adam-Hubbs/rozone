@@ -342,6 +342,77 @@ suite("open documentation", () => {
   });
 });
 
+suite("object-oriented code", () => {
+  const source = [
+    "#' A person",
+    "#' @field name Their name.",
+    'Person <- R6::R6Class("Person", public = list(',
+    "  name = NULL,",
+    "  #' @description Make a person.",
+    "  #' @param name Their name.",
+    "  initialize = function(name) self$name <- name,",
+    "  #' @description Say hello.",
+    '  greet = function(to = "you") cat("Hi", to)',
+    "))",
+    "",
+    "#' A dog",
+    "#' @prop name What it is called.",
+    "Dog := S7::new_class(properties = list(name = S7::class_character))",
+    "",
+    'p <- Person$new("Al")',
+    "p$greet()",
+    'd <- Dog(name = "Rex")',
+    "",
+    "#' An account",
+    'Account <- setRefClass("Account", fields = list(balance = "numeric"),',
+    '  methods = list(deposit = function(x) { "Add money."; balance <<- balance + x }))',
+    "",
+    "#' A circle",
+    "#' @slot r The radius.",
+    'Circle <- setClass("Circle", slots = c(r = "numeric"))',
+    "",
+    "a <- Account(balance = 1)",
+    "a$deposit(2)",
+    "c1 <- Circle(r = 1)",
+    "c1@r",
+    "",
+  ].join("\n");
+
+  setup(async function () {
+    const probe = await openUntitled("");
+    if (probe.languageId !== "r") this.skip();
+  });
+
+  test("R6 members and S7 constructors get hover and signature help", async () => {
+    const doc = await openUntitled(source);
+    assert.match(hoverText(await hoversAt(doc, positionOf(doc, "p$greet()", 3))), /Say hello/);
+    const constructor = await signatureAt(doc, positionOf(doc, "Person$new(", "Person$new(".length), "(");
+    assert.equal(constructor?.signatures[0]?.label, "Person$new(name)");
+    const dog = await signatureAt(doc, positionOf(doc, "Dog(name", "Dog(".length), "(");
+    assert.equal(dog?.signatures[0]?.label, "Dog(name)");
+  });
+
+  test("reference class methods and S4 slots get hover", async () => {
+    const doc = await openUntitled(source);
+    assert.match(hoverText(await hoversAt(doc, positionOf(doc, "a$deposit(2)", 3))), /Add money/);
+    assert.match(hoverText(await hoversAt(doc, positionOf(doc, "c1@r", 3))), /The radius/);
+    const help = await signatureAt(doc, positionOf(doc, "a$deposit(2)", "a$deposit(".length), "(");
+    assert.equal(help?.signatures[0]?.label, "Account$deposit(x)");
+  });
+
+  test("open documentation works on an R6 member under the cursor", async () => {
+    const doc = await openUntitled(source);
+    const editor = await vscode.window.showTextDocument(doc);
+    const at = positionOf(doc, "p$greet()", 3);
+    editor.selection = new vscode.Selection(at, at);
+    const uri = (await vscode.commands.executeCommand("rozone.openDocumentation")) as vscode.Uri | undefined;
+    assert.equal(uri?.scheme, "rozone-doc");
+    const page = await vscode.workspace.openTextDocument(uri as vscode.Uri);
+    assert.match(page.getText(), /Person\$greet/);
+    assert.match(page.getText(), /Say hello/);
+  });
+});
+
 suite("latency", () => {
   test("hover and signature help answer in under 50 ms once indexed", async () => {
     const doc = await openFixture("example_script.R");

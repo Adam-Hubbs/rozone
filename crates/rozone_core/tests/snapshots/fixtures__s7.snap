@@ -1,0 +1,355 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"s7.R\")"
+---
+# documented functions
+Animal 100..106 title=Some("An animal")
+Dog 329..332 title=Some("A dog")
+Range 520..525 title=Some("A range")
+speak 766..771 title=Some("Make a noise")
+describe 877..885 title=Some("Describe something")
+
+# documentation(Animal)
+_Animal {s7.R}_
+
+## An animal
+
+------
+
+### Usage
+
+```r
+Animal(name, age = 0)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | What it is called. |
+| `age` | How old it is, in years. |
+
+# hover at definition of Animal
+hover: Definition Animal range=100..106 source=Static
+  | _Animal {s7.R}_
+  | 
+  | ## An animal
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Animal(name, age = 0)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | What it is called. |
+  | | `age` | How old it is, in years. |
+
+# documentation(Dog)
+_Dog {s7.R}_
+
+## A dog
+
+------
+
+*Inherits from `Animal`.*
+
+### Usage
+
+```r
+Dog(name, age = 0, good = TRUE)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | The dog's name. |
+| `age` | How old it is, in years. |
+| `good` | Whether it is a good dog. |
+
+# hover at definition of Dog
+hover: Definition Dog range=329..332 source=Static
+  | _Dog {s7.R}_
+  | 
+  | ## A dog
+  | 
+  | ------
+  | 
+  | *Inherits from `Animal`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Dog(name, age = 0, good = TRUE)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | The dog's name. |
+  | | `age` | How old it is, in years. |
+  | | `good` | Whether it is a good dog. |
+
+# documentation(Range)
+_Range {s7.R}_
+
+## A range
+
+------
+
+### Usage
+
+```r
+Range(x)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `x` | Values to span. |
+
+### Properties
+
+- `start`: The bounds.
+- `end`: The bounds.
+
+# hover at definition of Range
+hover: Definition Range range=520..525 source=Static
+  | _Range {s7.R}_
+  | 
+  | ## A range
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Range(x)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Values to span. |
+  | 
+  | ### Properties
+  | 
+  | - `start`: The bounds.
+  | - `end`: The bounds.
+
+# documentation(speak)
+_speak {s7.R}_
+
+## Make a noise
+
+------
+
+### Usage
+
+```r
+speak(x, ...)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `x` | An animal. |
+| `...` | Passed on to methods. |
+
+### Methods
+
+- `speak(<Dog>)`: Dogs bark
+- `speak(<Animal>)`
+
+# hover at definition of speak
+hover: Definition speak range=766..771 source=Static
+  | _speak {s7.R}_
+  | 
+  | ## Make a noise
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | speak(x, ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | An animal. |
+  | | `...` | Passed on to methods. |
+  | 
+  | ### Methods
+  | 
+  | - `speak(<Dog>)`: Dogs bark
+  | - `speak(<Animal>)`
+
+# documentation(describe)
+_describe {s7.R}_
+
+## Describe something
+
+------
+
+### Usage
+
+```r
+describe(x, style = "short", ...)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `x` | The thing. |
+| `style` | How to describe it. |
+
+# hover at definition of describe
+hover: Definition describe range=877..885 source=Static
+  | _describe {s7.R}_
+  | 
+  | ## Describe something
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | describe(x, style = "short", ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | The thing. |
+  | | `style` | How to describe it. |
+
+# 50:6  d <- D¦og(name = "Rex", good = TRUE)
+hover: Call Dog range=1096..1099 source=Static
+  | _Dog {s7.R}_
+  | 
+  | ## A dog
+  | 
+  | ------
+  | 
+  | *Inherits from `Animal`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Dog(name, age = 0, good = TRUE)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | The dog's name. |
+  | | `age` | How old it is, in years. |
+  | | `good` | Whether it is a good dog. |
+signature: none
+
+# 50:9  d <- Dog(¦name = "Rex", good = TRUE)
+hover: none
+signature: Dog(name, age = 0, good = TRUE) active=0 (name)
+
+# 51:3  spe¦ak(d, )
+hover: Call speak range=1127..1132 source=Static
+  | _speak {s7.R}_
+  | 
+  | ## Make a noise
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | speak(x, ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | An animal. |
+  | | `...` | Passed on to methods. |
+  | 
+  | ### Methods
+  | 
+  | - `speak(<Dog>)`: Dogs bark
+  | - `speak(<Animal>)`
+signature: none
+
+# 51:9  speak(d, ¦)
+hover: none
+signature: speak(x, ...) active=1 (...)
+
+# 52:4  desc¦ribe(d, st)
+hover: Call describe range=1138..1146 source=Static
+  | _describe {s7.R}_
+  | 
+  | ## Describe something
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | describe(x, style = "short", ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | The thing. |
+  | | `style` | How to describe it. |
+signature: none
+
+# 52:14  describe(d, st¦)
+hover: none
+signature: describe(x, style = "short", ...) active=1 (style = "short")
+
+# 53:3  Ran¦ge(1:10)
+hover: Call Range range=1154..1159 source=Static
+  | _Range {s7.R}_
+  | 
+  | ## A range
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Range(x)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | Values to span. |
+  | 
+  | ### Properties
+  | 
+  | - `start`: The bounds.
+  | - `end`: The bounds.
+signature: none
+
+# 53:6  Range(¦1:10)
+hover: none
+signature: Range(x) active=0 (x)

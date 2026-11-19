@@ -1,11 +1,13 @@
-//! Top-level function definitions and their leading `#'` blocks.
+//! Top-level definitions and their leading `#'` blocks: plain functions, and
+//! the S4, R6 and S7 classes and generics that `oo` recognises.
 
 use air_r_parser::RParserOptions;
 use std::cell::OnceCell;
 
 use air_r_syntax::{AnyRExpression, RFunctionDefinition, RSyntaxNode};
-use biome_rowan::{AstNode, AstNodeList, AstSeparatedList, TextRange};
+use biome_rowan::{AstNode, AstNodeList, AstSeparatedList, TextRange, TextSize};
 
+use crate::oo;
 use crate::roxygen::{Block, parse_block};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,38 +16,196 @@ pub struct Formal {
     pub default: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefKind {
+    Function,
+    S4Generic,
+    S4Class,
+    S7Generic,
+    S7Class,
+    /// `new_union()` or `class_a | class_b`: a type, not a callable class.
+    S7Union,
+    /// `new_external_generic()`: names a generic in another package so methods
+    /// can be registered for it.
+    S7ExternalGeneric,
+    R6Class,
+    /// `setRefClass()`.
+    RefClass,
+}
+
+impl DefKind {
+    /// Classes whose objects are used with `$`: R6 and reference classes.
+    pub fn has_dollar_members(self) -> bool {
+        matches!(self, Self::R6Class | Self::RefClass)
+    }
+
+    /// Classes whose objects are used with `@`: S4 and S7.
+    pub fn has_slots(self) -> bool {
+        matches!(self, Self::S4Class | Self::S7Class)
+    }
+}
+
+/// Where a definition's formals come from: its own function, or a list built
+/// from slots or properties.
+#[derive(Debug, Clone)]
+pub(crate) enum Callable {
+    Function(RFunctionDefinition),
+    Formals(Vec<Formal>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberKind {
+    Method,
+    Field,
+    Active,
+    Slot,
+    Property,
+}
+
+/// A slot, property, field or method declared inside a class definition.
+#[derive(Debug, Clone)]
+pub struct Member {
+    pub name: String,
+    pub kind: MemberKind,
+    /// An R6 `private` member.
+    pub private: bool,
+    /// The default a constructor argument takes, as written.
+    pub default: Option<String>,
+    function: Option<RFunctionDefinition>,
+    block_span: Option<TextRange>,
+    /// A reference class method's docstring: a string as the body's first
+    /// statement.
+    docstring: Option<String>,
+    formals: OnceCell<Vec<Formal>>,
+    block: OnceCell<Option<Block>>,
+}
+
+impl Member {
+    pub(crate) fn new(
+        name: String,
+        kind: MemberKind,
+        private: bool,
+        default: Option<String>,
+        function: Option<RFunctionDefinition>,
+        block_span: Option<TextRange>,
+    ) -> Self {
+        Self {
+            name,
+            kind,
+            private,
+            default,
+            function,
+            block_span,
+            docstring: None,
+            formals: OnceCell::new(),
+            block: OnceCell::new(),
+        }
+    }
+
+    pub(crate) fn with_docstring(mut self, docstring: Option<String>) -> Self {
+        self.docstring = docstring;
+        self
+    }
+
+    pub fn formals(&self) -> &[Formal] {
+        self.formals
+            .get_or_init(|| self.function.as_ref().map(formals).unwrap_or_default())
+    }
+
+    /// Its `#'` block, else its docstring as the description.
+    pub fn block(&self, text: &str) -> Option<&Block> {
+        self.block
+            .get_or_init(|| {
+                block_in(text, self.block_span).or_else(|| {
+                    let docstring = self.docstring.clone()?;
+                    Some(Block {
+                        description: Some(docstring),
+                        ..Block::default()
+                    })
+                })
+            })
+            .as_ref()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ClassInfo {
+    /// R6 `inherit`, S4 `contains` and S7 `parent`, when they name a class.
+    pub parent: Option<String>,
+    pub members: Vec<Member>,
+    /// S7 `constructor =` was supplied, so the properties are not its arguments.
+    pub custom_constructor: bool,
+    /// Whether the class is called by its name: an assigned S4 or reference
+    /// class generator, any S7 class. R6 classes are called through `$new()`.
+    pub callable: bool,
+    /// The classes an S7 union combines, as written.
+    pub union_of: Vec<String>,
+    /// Code outside the definition that runs as its methods: a reference
+    /// class's later `X$methods(...)` calls.
+    pub method_ranges: Vec<TextRange>,
+}
+
+impl ClassInfo {
+    /// Whether `at` is inside code that runs as one of the class's methods.
+    pub fn runs_at(&self, stmt_range: TextRange, at: TextSize) -> bool {
+        stmt_range.contains(at) || self.method_ranges.iter().any(|r| r.contains(at))
+    }
+}
+
 /// Formals and the roxygen block are derived on first use: most definitions
 /// are never queried.
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub name: String,
-    /// The identifier being assigned to.
+    /// The identifier being assigned to, or the name string of an S4 call.
     pub name_range: TextRange,
-    function: RFunctionDefinition,
+    pub kind: DefKind,
+    pub class: Option<ClassInfo>,
+    /// The whole top-level statement, so code inside a class body can find it.
+    pub stmt_range: TextRange,
+    /// `pkg::name` for an S7 external generic.
+    pub external: Option<String>,
+    callable: Callable,
     block_span: Option<TextRange>,
     formals: OnceCell<Vec<Formal>>,
     block: OnceCell<Option<Block>>,
 }
 
 impl Definition {
+    pub(crate) fn new(
+        name: String,
+        name_range: TextRange,
+        kind: DefKind,
+        callable: Callable,
+        class: Option<ClassInfo>,
+        statement: &RSyntaxNode,
+    ) -> Self {
+        Self {
+            name,
+            name_range,
+            kind,
+            class,
+            stmt_range: statement.text_trimmed_range(),
+            external: None,
+            callable,
+            block_span: leading_block_span(statement),
+            formals: OnceCell::new(),
+            block: OnceCell::new(),
+        }
+    }
+
     pub fn formals(&self) -> &[Formal] {
-        self.formals.get_or_init(|| formals(&self.function))
+        self.formals.get_or_init(|| match &self.callable {
+            Callable::Function(function) => formals(function),
+            Callable::Formals(formals) => formals.clone(),
+        })
     }
 
     /// The parsed leading `#'` block. `text` is the text the definition was
     /// extracted from.
     pub fn block(&self, text: &str) -> Option<&Block> {
         self.block
-            .get_or_init(|| {
-                let span = self.block_span?;
-                let raw = text.get(usize::from(span.start())..usize::from(span.end()))?;
-                let lines: Vec<&str> = raw
-                    .lines()
-                    .map(str::trim_start)
-                    .filter(|l| l.starts_with('#'))
-                    .collect();
-                Some(parse_block(&lines))
-            })
+            .get_or_init(|| block_in(text, self.block_span))
             .as_ref()
     }
 
@@ -58,38 +218,115 @@ impl Definition {
 
     /// Exact source of the argument list, parentheses included.
     pub fn params_text(&self) -> String {
-        self.function
-            .parameters()
-            .map(|p| p.syntax().text_trimmed().to_string())
-            .unwrap_or_default()
+        match &self.callable {
+            Callable::Function(function) => function
+                .parameters()
+                .map(|p| p.syntax().text_trimmed().to_string())
+                .unwrap_or_default(),
+            Callable::Formals(_) => String::new(),
+        }
     }
 
     /// Whether the raw block mentions `tag`; lets the index find `@rdname` and
     /// `@describeIn` without parsing every block.
     pub fn block_mentions(&self, text: &str, tag: &str) -> bool {
-        self.block_span
-            .and_then(|span| text.get(usize::from(span.start())..usize::from(span.end())))
-            .is_some_and(|raw| raw.contains(tag))
+        self.block_text(text).contains(tag)
     }
+
+    pub fn members(&self) -> &[Member] {
+        self.class.as_ref().map_or(&[], |class| &class.members)
+    }
+
+    pub fn parent(&self) -> Option<&str> {
+        self.class.as_ref()?.parent.as_deref()
+    }
+}
+
+/// An S4 `setMethod()` or S7 `method<-` registration.
+#[derive(Debug, Clone)]
+pub struct MethodDef {
+    pub generic: String,
+    /// The classes it dispatches on, as written.
+    pub classes: Vec<String>,
+    block_span: Option<TextRange>,
+    block: OnceCell<Option<Block>>,
+}
+
+impl MethodDef {
+    pub(crate) fn new(generic: String, classes: Vec<String>, statement: &RSyntaxNode) -> Self {
+        Self {
+            generic,
+            classes,
+            block_span: leading_block_span(statement),
+            block: OnceCell::new(),
+        }
+    }
+
+    pub fn block(&self, text: &str) -> Option<&Block> {
+        self.block
+            .get_or_init(|| block_in(text, self.block_span))
+            .as_ref()
+    }
+}
+
+fn block_in(text: &str, span: Option<TextRange>) -> Option<Block> {
+    let span = span?;
+    let raw = text.get(usize::from(span.start())..usize::from(span.end()))?;
+    let lines: Vec<&str> = raw
+        .lines()
+        .map(str::trim_start)
+        .filter(|l| l.starts_with('#'))
+        .collect();
+    Some(parse_block(&lines))
 }
 
 pub struct Parsed {
     pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
+    pub methods: Vec<MethodDef>,
 }
 
 pub fn parse(text: &str) -> Parsed {
     let parse = air_r_parser::parse(text, RParserOptions::default());
-    let defs = parse
-        .tree()
-        .statements()
-        .iter()
-        .filter_map(|stmt| stmt.as_r_expression_statement()?.expression().ok())
-        .filter_map(|expr| definition(&expr))
-        .collect();
+    let mut defs = Vec::new();
+    let mut methods = Vec::new();
+    for stmt in parse.tree().statements().iter() {
+        let Some(expr) = stmt
+            .as_r_expression_statement()
+            .and_then(|s| s.expression().ok())
+        else {
+            continue;
+        };
+        if let Some(def) = definition(&expr) {
+            defs.push(def);
+            continue;
+        }
+        match oo::recognise(&expr) {
+            Some(oo::Item::Def(def)) => defs.push(def),
+            Some(oo::Item::Method(method)) => methods.push(method),
+            Some(oo::Item::RefMethods {
+                class,
+                members,
+                range,
+            }) => {
+                // Only a class defined earlier in the same file is extended.
+                let info = defs
+                    .iter_mut()
+                    .rev()
+                    .find(|d: &&mut Definition| d.kind == DefKind::RefClass && d.name == class)
+                    .and_then(|d| d.class.as_mut());
+                if let Some(info) = info {
+                    info.members.extend(members);
+                    info.method_ranges.push(range);
+                }
+            }
+            None => {}
+        }
+    }
     Parsed {
         root: parse.syntax(),
         defs,
+        methods,
     }
 }
 
@@ -107,18 +344,17 @@ fn definition(expr: &AnyRExpression) -> Option<Definition> {
     };
     let ident = target.as_r_identifier()?;
     let function = function_of(value)?;
-    let name = unquote(&ident.syntax().text_trimmed().to_string());
-    Some(Definition {
-        name,
-        name_range: ident.syntax().text_trimmed_range(),
-        function,
-        block_span: leading_block_span(binary.syntax()),
-        formals: OnceCell::new(),
-        block: OnceCell::new(),
-    })
+    Some(Definition::new(
+        unquote(&ident.syntax().text_trimmed().to_string()),
+        ident.syntax().text_trimmed_range(),
+        DefKind::Function,
+        Callable::Function(function),
+        None,
+        binary.syntax(),
+    ))
 }
 
-fn function_of(mut expr: AnyRExpression) -> Option<RFunctionDefinition> {
+pub(crate) fn function_of(mut expr: AnyRExpression) -> Option<RFunctionDefinition> {
     loop {
         match expr {
             AnyRExpression::RFunctionDefinition(function) => return Some(function),
@@ -128,7 +364,7 @@ fn function_of(mut expr: AnyRExpression) -> Option<RFunctionDefinition> {
     }
 }
 
-fn formals(function: &RFunctionDefinition) -> Vec<Formal> {
+pub(crate) fn formals(function: &RFunctionDefinition) -> Vec<Formal> {
     let Ok(parameters) = function.parameters() else {
         return Vec::new();
     };
@@ -212,7 +448,7 @@ pub fn unquote(name: &str) -> String {
 /// Roxygen lines are leading trivia of the statement's first token; a blank
 /// line or a non-roxygen comment ends the block. Returns the text span from
 /// the first to the last `#'` line.
-fn leading_block_span(node: &RSyntaxNode) -> Option<TextRange> {
+pub(crate) fn leading_block_span(node: &RSyntaxNode) -> Option<TextRange> {
     let token = node.first_token()?;
     let mut span: Option<TextRange> = None;
     let mut newlines = 0;

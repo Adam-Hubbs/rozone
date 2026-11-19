@@ -5,6 +5,8 @@ mod extract;
 mod index;
 mod manifest;
 mod markdown;
+mod oo;
+mod oo_docs;
 mod resolve;
 mod roxygen;
 mod strip;

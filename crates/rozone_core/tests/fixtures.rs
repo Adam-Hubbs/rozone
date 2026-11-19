@@ -23,4 +23,10 @@ fixture_snapshots! {
     links => "links.R",
     unicode => "unicode.R",
     broken => "broken.R",
+    s4 => "s4.R",
+    r6 => "r6.R",
+    s7 => "s7.R",
+    refclass => "refclass.R",
+    slots => "slots.R",
+    s7_types => "s7_types.R",
 }

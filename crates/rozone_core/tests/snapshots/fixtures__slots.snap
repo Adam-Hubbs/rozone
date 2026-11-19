@@ -1,0 +1,351 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"slots.R\")"
+---
+# documented functions
+Shape 46..53 title=Some("A shape")
+Circle 141..147 title=Some("A circle")
+area 261..267 title=Some("Area")
+Dog 687..690 title=Some("A dog")
+speak 807..812 title=Some("Make a noise")
+
+# documentation(Shape)
+_Shape {slots.R}_
+
+## A shape
+
+------
+
+### Usage
+
+```r
+new("Shape", name)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | A label. |
+
+# hover at definition of Shape
+hover: none
+
+# documentation(Circle)
+_Circle {slots.R}_
+
+## A circle
+
+------
+
+*Inherits from `Shape`.*
+
+### Usage
+
+```r
+Circle(name, r)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | A label. |
+| `r` | The radius. |
+
+# hover at definition of Circle
+hover: Definition Circle range=141..147 source=Static
+  | _Circle {slots.R}_
+  | 
+  | ## A circle
+  | 
+  | ------
+  | 
+  | *Inherits from `Shape`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle(name, r)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | A label. |
+  | | `r` | The radius. |
+
+# documentation(area)
+_area {slots.R}_
+
+## Area
+
+------
+
+### Usage
+
+```r
+area(shape)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `shape` | A shape. |
+
+### Methods
+
+- `area(<Circle>)`
+
+# hover at definition of area
+hover: none
+
+# documentation(Dog)
+_Dog {slots.R}_
+
+## A dog
+
+------
+
+### Usage
+
+```r
+Dog(name, age)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `name` | What it is called. |
+| `age` | How old it is. |
+
+# hover at definition of Dog
+hover: Definition Dog range=687..690 source=Static
+  | _Dog {slots.R}_
+  | 
+  | ## A dog
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Dog(name, age)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `name` | What it is called. |
+  | | `age` | How old it is. |
+
+# documentation(speak)
+_speak {slots.R}_
+
+## Make a noise
+
+------
+
+### Usage
+
+```r
+speak(x, ...)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `x` | An animal. |
+
+### Methods
+
+- `speak(<Dog>)`
+
+# hover at definition of speak
+hover: Definition speak range=807..812 source=Static
+  | _speak {slots.R}_
+  | 
+  | ## Make a noise
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | speak(x, ...)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `x` | An animal. |
+  | 
+  | ### Methods
+  | 
+  | - `speak(<Dog>)`
+
+# 15:55  setMethod("area", "Circle", function(shape) pi * shape@¦r^2)
+hover: Identifier Circle@r range=366..367 source=Static
+  | _Circle@r {slots.R}_
+  | 
+  | ------
+  | 
+  | *Slot of `Circle`.*
+  | 
+  | ### Description
+  | 
+  | The radius.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@r
+  | ```
+signature: none
+
+# 16:78  setMethod("show", signature(object = "Circle"), function(object) cat(object@na¦me))
+hover: Identifier Circle@name range=447..451 source=Static
+  | _Circle@name {slots.R}_
+  | 
+  | ------
+  | 
+  | *Inherited from `Shape`.*
+  | 
+  | ### Description
+  | 
+  | A label.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@name
+  | ```
+signature: none
+
+# 17:46  setValidity("Circle", function(object) object@¦r >= 0)
+hover: Identifier Circle@r range=500..501 source=Static
+  | _Circle@r {slots.R}_
+  | 
+  | ------
+  | 
+  | *Slot of `Circle`.*
+  | 
+  | ### Description
+  | 
+  | The radius.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@r
+  | ```
+signature: none
+
+# 20:3  c1@¦r
+hover: Identifier Circle@r range=547..548 source=Static
+  | _Circle@r {slots.R}_
+  | 
+  | ------
+  | 
+  | *Slot of `Circle`.*
+  | 
+  | ### Description
+  | 
+  | The radius.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@r
+  | ```
+signature: none
+
+# 21:5  c1@na¦me
+hover: Identifier Circle@name range=552..556 source=Static
+  | _Circle@name {slots.R}_
+  | 
+  | ------
+  | 
+  | *Inherited from `Shape`.*
+  | 
+  | ### Description
+  | 
+  | A label.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@name
+  | ```
+signature: none
+
+# 23:3  c2@¦r
+hover: Identifier Circle@r range=587..588 source=Static
+  | _Circle@r {slots.R}_
+  | 
+  | ------
+  | 
+  | *Slot of `Circle`.*
+  | 
+  | ### Description
+  | 
+  | The radius.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Circle@r
+  | ```
+signature: none
+
+# 24:7  c1@miss¦ing
+hover: none
+signature: none
+
+# 38:42  method(speak, Dog) <- function(x) cat(x@na¦me, "says woof\n")
+hover: Identifier Dog@name range=874..878 source=Static
+  | _Dog@name {slots.R}_
+  | 
+  | ------
+  | 
+  | *Property of `Dog`.*
+  | 
+  | ### Description
+  | 
+  | What it is called.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Dog@name
+  | ```
+signature: none
+
+# 41:3  d@a¦ge
+hover: Identifier Dog@age range=930..933 source=Static
+  | _Dog@age {slots.R}_
+  | 
+  | ------
+  | 
+  | *Property of `Dog`.*
+  | 
+  | ### Description
+  | 
+  | How old it is.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Dog@age
+  | ```
+signature: none
+
+# 42:15  function(d) d@a¦ge
+hover: none
+signature: none

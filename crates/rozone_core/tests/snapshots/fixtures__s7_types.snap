@@ -1,0 +1,301 @@
+---
+source: crates/rozone_core/tests/fixtures.rs
+expression: "common :: report(\"s7_types.R\")"
+---
+# documented functions
+Number 52..58 title=Some("A number")
+OptionalText 121..133 title=Some("Text or nothing")
+Measure 246..253 title=Some("A measurement")
+median_ext 399..409 title=Some("Median of a measurement")
+summary_ext 472..483 title=Some("Summarise")
+
+# documentation(Number)
+_Number {s7_types.R}_
+
+## A number
+
+------
+
+### Description
+
+Integers or doubles.
+
+### Usage
+
+```r
+new_union(class_integer, class_double)
+```
+
+### Classes
+
+- `class_integer`
+- `class_double`
+
+# hover at definition of Number
+hover: Definition Number range=52..58 source=Static
+  | _Number {s7_types.R}_
+  | 
+  | ## A number
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Integers or doubles.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | new_union(class_integer, class_double)
+  | ```
+  | 
+  | ### Classes
+  | 
+  | - `class_integer`
+  | - `class_double`
+
+# documentation(OptionalText)
+_OptionalText {s7_types.R}_
+
+## Text or nothing
+
+------
+
+### Usage
+
+```r
+new_union(class_character, NULL)
+```
+
+### Classes
+
+- `class_character`
+- `NULL`
+
+# hover at definition of OptionalText
+hover: Definition OptionalText range=121..133 source=Static
+  | _OptionalText {s7_types.R}_
+  | 
+  | ## Text or nothing
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | new_union(class_character, NULL)
+  | ```
+  | 
+  | ### Classes
+  | 
+  | - `class_character`
+  | - `NULL`
+
+# documentation(Measure)
+_Measure {s7_types.R}_
+
+## A measurement
+
+------
+
+### Usage
+
+```r
+Measure(value, unit)
+```
+
+### Arguments
+
+|     |     |
+| --- | --- |
+| `value` | The amount. |
+| `unit` | What it is measured in. |
+
+# hover at definition of Measure
+hover: Definition Measure range=246..253 source=Static
+  | _Measure {s7_types.R}_
+  | 
+  | ## A measurement
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | Measure(value, unit)
+  | ```
+  | 
+  | ### Arguments
+  | 
+  | |     |     |
+  | | --- | --- |
+  | | `value` | The amount. |
+  | | `unit` | What it is measured in. |
+
+# documentation(median_ext)
+_median_ext {s7_types.R}_
+
+## Median of a measurement
+
+------
+
+*Registers methods for `stats::median`.*
+
+### Description
+
+Registers a method for the stats generic.
+
+### Usage
+
+```r
+stats::median(x, ...)
+```
+
+### Methods
+
+- `stats::median(<Measure>)`: The median value
+
+# hover at definition of median_ext
+hover: Definition median_ext range=399..409 source=Static
+  | _median_ext {s7_types.R}_
+  | 
+  | ## Median of a measurement
+  | 
+  | ------
+  | 
+  | *Registers methods for `stats::median`.*
+  | 
+  | ### Description
+  | 
+  | Registers a method for the stats generic.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | stats::median(x, ...)
+  | ```
+  | 
+  | ### Methods
+  | 
+  | - `stats::median(<Measure>)`: The median value
+
+# documentation(summary_ext)
+_summary_ext {s7_types.R}_
+
+## Summarise
+
+------
+
+*Registers methods for `base::summary_ext`.*
+
+### Usage
+
+```r
+base::summary_ext(object, ...)
+```
+
+# hover at definition of summary_ext
+hover: Definition summary_ext range=472..483 source=Static
+  | _summary_ext {s7_types.R}_
+  | 
+  | ## Summarise
+  | 
+  | ------
+  | 
+  | *Registers methods for `base::summary_ext`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | base::summary_ext(object, ...)
+  | ```
+
+# 29:3  Num¦ber
+hover: Identifier Number range=673..679 source=Static
+  | _Number {s7_types.R}_
+  | 
+  | ## A number
+  | 
+  | ------
+  | 
+  | ### Description
+  | 
+  | Integers or doubles.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | new_union(class_integer, class_double)
+  | ```
+  | 
+  | ### Classes
+  | 
+  | - `class_integer`
+  | - `class_double`
+signature: none
+
+# 30:8  Optional¦Text
+hover: Identifier OptionalText range=680..692 source=Static
+  | _OptionalText {s7_types.R}_
+  | 
+  | ## Text or nothing
+  | 
+  | ------
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | new_union(class_character, NULL)
+  | ```
+  | 
+  | ### Classes
+  | 
+  | - `class_character`
+  | - `NULL`
+signature: none
+
+# 31:8  median_e¦xt
+hover: Identifier median_ext range=693..703 source=Static
+  | _median_ext {s7_types.R}_
+  | 
+  | ## Median of a measurement
+  | 
+  | ------
+  | 
+  | *Registers methods for `stats::median`.*
+  | 
+  | ### Description
+  | 
+  | Registers a method for the stats generic.
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | stats::median(x, ...)
+  | ```
+  | 
+  | ### Methods
+  | 
+  | - `stats::median(<Measure>)`: The median value
+signature: none
+
+# 32:9  summary_e¦xt
+hover: Identifier summary_ext range=704..715 source=Static
+  | _summary_ext {s7_types.R}_
+  | 
+  | ## Summarise
+  | 
+  | ------
+  | 
+  | *Registers methods for `base::summary_ext`.*
+  | 
+  | ### Usage
+  | 
+  | ```r
+  | base::summary_ext(object, ...)
+  | ```
+signature: none
+
+# 33:11  median_ext(¦)
+hover: none
+signature: none
