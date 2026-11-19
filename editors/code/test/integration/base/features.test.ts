@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
+import { createHoverProvider, createSignatureHelpProvider } from "../../../src/base/providers.ts";
 import type { RozoneExports } from "../../../src/extension.ts";
 import {
   activateRozone,
@@ -336,9 +337,21 @@ suite("latency", () => {
     const doc = await openFixture("example_script.R");
     const large = await openFixture("generated", "large.R");
     const targets = [
-      { doc, hover: positionOf(doc, "wmean({{", 2), sig: positionOf(doc, "wmean({{", 6), label: "example_script.R" },
-      { doc: large, hover: positionOf(large, "generated_fn_3999(1)", 3), sig: positionOf(large, "generated_fn_3999(1)", "generated_fn_3999(".length), label: "large.R (4000 functions)" },
+      { doc, name: "wmean", hover: positionOf(doc, "wmean({{", 2), sig: positionOf(doc, "wmean({{", 6), label: "example_script.R" },
+      { doc: large, name: "generated_fn_3999", hover: positionOf(large, "generated_fn_3999(1)", 3), sig: positionOf(large, "generated_fn_3999(1)", "generated_fn_3999(".length), label: "large.R (4000 functions)" },
     ];
+    // In Positron the commands also wait for Ark's providers, which are slow while its R session and
+    // the sidecar start up, so time rozone's own providers there and keep the commands for correctness.
+    const tier = rozone._test.tier;
+    const deps = { client: tier.client, discovery: tier.discovery, injectedTopics: rozone._test.injectedTopics, log: tier.api.log };
+    const direct = isPositron() ? { hover: createHoverProvider(deps), signature: createSignatureHelpProvider(deps) } : undefined;
+    const token = new vscode.CancellationTokenSource().token;
+    const sigContext: vscode.SignatureHelpContext = {
+      triggerKind: vscode.SignatureHelpTriggerKind.TriggerCharacter,
+      triggerCharacter: "(",
+      isRetrigger: false,
+      activeSignatureHelp: undefined,
+    };
     for (const target of targets) {
       for (let i = 0; i < 5; i++) {
         await hoversAt(target.doc, target.hover);
@@ -349,17 +362,30 @@ suite("latency", () => {
       for (let i = 0; i < 40; i++) {
         let started = performance.now();
         const hovers = await hoversAt(target.doc, target.hover);
-        hoverTimes.push(performance.now() - started);
+        let hoverMs = performance.now() - started;
         started = performance.now();
         const help = await signatureAt(target.doc, target.sig, "(");
-        sigTimes.push(performance.now() - started);
+        let sigMs = performance.now() - started;
         assert.ok(hovers.length > 0 && help, `${target.label}: expected results`);
+        if (direct) {
+          started = performance.now();
+          const directHover = await direct.hover.provideHover(target.doc, target.hover, token);
+          hoverMs = performance.now() - started;
+          started = performance.now();
+          const directHelp = await direct.signature.provideSignatureHelp(target.doc, target.sig, token, sigContext);
+          sigMs = performance.now() - started;
+          // rozone deliberately leaves hovers for topics injected into the R session to Ark.
+          assert.ok(directHover || rozone._test.injectedTopics().has(target.name), `${target.label}: rozone hover`);
+          assert.ok(directHelp, `${target.label}: rozone signature help`);
+        }
+        hoverTimes.push(hoverMs);
+        sigTimes.push(sigMs);
       }
       const median = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)] as number;
       const p95 = (values: number[]) => values.toSorted((a, b) => a - b)[Math.floor(values.length * 0.95)] as number;
       console.log(
         `latency ${target.label}: hover median ${median(hoverTimes).toFixed(1)} ms p95 ${p95(hoverTimes).toFixed(1)} ms; ` +
-          `signature median ${median(sigTimes).toFixed(1)} ms p95 ${p95(sigTimes).toFixed(1)} ms (includes extension host command round trip)`,
+          `signature median ${median(sigTimes).toFixed(1)} ms p95 ${p95(sigTimes).toFixed(1)} ms (${direct ? "rozone providers only" : "includes extension host command round trip"})`,
       );
       assert.ok(median(hoverTimes) < 50, `${target.label}: hover median ${median(hoverTimes)} ms`);
       assert.ok(median(sigTimes) < 50, `${target.label}: signature median ${median(sigTimes)} ms`);
