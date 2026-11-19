@@ -25,16 +25,40 @@ export interface Reregistrar extends DisposableLike {
   reregister(): void;
 }
 
-export function createReregistrar(register: () => DisposableLike): Reregistrar {
+export interface ReregistrarOptions {
+  /**
+   * How long a replaced registration stays registered. The workbench picks a provider before the
+   * request reaches the extension host, and a request routed to a disposed provider resolves empty
+   * instead of falling through to the new one.
+   */
+  graceMs?: number;
+  setTimeout?: (callback: () => void, ms: number) => unknown;
+  clearTimeout?: (handle: unknown) => void;
+}
+
+export function createReregistrar(register: () => DisposableLike, options: ReregistrarOptions = {}): Reregistrar {
+  const graceMs = options.graceMs ?? 2000;
+  const schedule = options.setTimeout ?? ((callback, ms) => setTimeout(callback, ms));
+  const cancel = options.clearTimeout ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  const retiring = new Map<unknown, DisposableLike>();
   let current: DisposableLike | undefined = register();
   return {
     reregister() {
       if (!current) return;
       const previous = current;
       current = register();
-      previous.dispose();
+      const handle = schedule(() => {
+        retiring.delete(handle);
+        previous.dispose();
+      }, graceMs);
+      retiring.set(handle, previous);
     },
     dispose() {
+      for (const [handle, registration] of retiring) {
+        cancel(handle);
+        registration.dispose();
+      }
+      retiring.clear();
       current?.dispose();
       current = undefined;
     },

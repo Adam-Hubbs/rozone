@@ -66,19 +66,29 @@ function setup(sessions: SessionLike[] = []) {
 
 const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
 
-test("reregistrar registers once up front and swaps registrations, disposing the old one", () => {
+function trackedRegistrations() {
   const registrations: { disposed: boolean }[] = [];
-  const reregistrar = createReregistrar(() => {
+  const register = () => {
     const registration = { disposed: false };
     registrations.push(registration);
     return { dispose: () => void (registration.disposed = true) };
-  });
+  };
+  return { registrations, register, disposed: () => registrations.map((r) => r.disposed) };
+}
+
+test("reregistrar registers once up front and swaps registrations, disposing the old one after the grace period", () => {
+  const { registrations, register, disposed } = trackedRegistrations();
+  const clock = manualClock();
+  const reregistrar = createReregistrar(register, { graceMs: 50, ...clock });
   assert.equal(registrations.length, 1);
   reregistrar.reregister();
   assert.equal(registrations.length, 2);
-  assert.deepEqual(registrations.map((r) => r.disposed), [true, false]);
+  assert.deepEqual(disposed(), [false, false], "the old registration still answers requests already routed to it");
+  assert.deepEqual(clock.pending(), [50]);
+  clock.flush();
+  assert.deepEqual(disposed(), [true, false]);
   reregistrar.dispose();
-  assert.deepEqual(registrations.map((r) => r.disposed), [true, true]);
+  assert.deepEqual(disposed(), [true, true]);
   reregistrar.reregister();
   assert.equal(registrations.length, 2, "no registrations after dispose");
 });
@@ -86,13 +96,27 @@ test("reregistrar registers once up front and swaps registrations, disposing the
 test("the new registration exists before the old one is disposed", () => {
   const order: string[] = [];
   let n = 0;
+  const clock = manualClock();
   const reregistrar = createReregistrar(() => {
     const id = ++n;
     order.push(`register ${id}`);
     return { dispose: () => void order.push(`dispose ${id}`) };
-  });
+  }, clock);
   reregistrar.reregister();
+  clock.flush();
   assert.deepEqual(order, ["register 1", "register 2", "dispose 1"]);
+});
+
+test("dispose releases registrations still in their grace period and cancels their timers", () => {
+  const { register, disposed } = trackedRegistrations();
+  const clock = manualClock();
+  const reregistrar = createReregistrar(register, { graceMs: 50, ...clock });
+  reregistrar.reregister();
+  reregistrar.reregister();
+  assert.deepEqual(disposed(), [false, false, false]);
+  reregistrar.dispose();
+  assert.deepEqual(disposed(), [true, true, true]);
+  assert.deepEqual(clock.pending(), []);
 });
 
 test("a foreground session change re-registers at each configured delay", () => {
