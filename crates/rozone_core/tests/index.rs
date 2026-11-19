@@ -773,3 +773,27 @@ fn documentation_accepts_the_names_r6_hovers_report() {
     assert!(index.documentation("Person$missing", None).is_none());
     assert!(index.documentation("area$x", None).is_none());
 }
+
+#[test]
+fn documentation_accepts_slot_names() {
+    let text = "#' A circle\n#' @slot r The radius.\nCircle <- setClass(\"Circle\", slots = c(r = \"numeric\"))\n";
+    let index = index_of(&[("/a.R", text)]);
+    let page = index.documentation("Circle@r", None).unwrap();
+    assert_eq!(page.lines().next(), Some("_Circle@r {a.R}_"));
+    assert!(page.contains("The radius."), "{page}");
+    assert!(index.documentation("Circle$r", None).is_none());
+}
+
+#[test]
+fn reference_class_members_shadow_globals_only_inside_the_class() {
+    let text = "#' Global\nreport <- function() 1\n\n#' Account\nA <- setRefClass(\"A\", methods = list(\n  report = function() { \"Member.\"; 1 },\n  run = function() report()\n))\nreport()\n";
+    let index = index_of(&[("/a.R", text)]);
+    let inside = index
+        .hover("/a.R", offset_of(text, "report()\n))") + 1)
+        .unwrap();
+    assert_eq!(inside.name, "A$report");
+    let outside = index
+        .hover("/a.R", offset_of(text, "))\nreport()") + 4)
+        .unwrap();
+    assert_eq!(outside.name, "report");
+}

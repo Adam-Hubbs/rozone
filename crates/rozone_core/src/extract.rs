@@ -5,7 +5,7 @@ use air_r_parser::RParserOptions;
 use std::cell::OnceCell;
 
 use air_r_syntax::{AnyRExpression, RFunctionDefinition, RSyntaxNode};
-use biome_rowan::{AstNode, AstNodeList, AstSeparatedList, TextRange};
+use biome_rowan::{AstNode, AstNodeList, AstSeparatedList, TextRange, TextSize};
 
 use crate::oo;
 use crate::roxygen::{Block, parse_block};
@@ -23,7 +23,26 @@ pub enum DefKind {
     S4Class,
     S7Generic,
     S7Class,
+    /// `new_union()` or `class_a | class_b`: a type, not a callable class.
+    S7Union,
+    /// `new_external_generic()`: names a generic in another package so methods
+    /// can be registered for it.
+    S7ExternalGeneric,
     R6Class,
+    /// `setRefClass()`.
+    RefClass,
+}
+
+impl DefKind {
+    /// Classes whose objects are used with `$`: R6 and reference classes.
+    pub fn has_dollar_members(self) -> bool {
+        matches!(self, Self::R6Class | Self::RefClass)
+    }
+
+    /// Classes whose objects are used with `@`: S4 and S7.
+    pub fn has_slots(self) -> bool {
+        matches!(self, Self::S4Class | Self::S7Class)
+    }
 }
 
 /// Where a definition's formals come from: its own function, or a list built
@@ -54,6 +73,9 @@ pub struct Member {
     pub default: Option<String>,
     function: Option<RFunctionDefinition>,
     block_span: Option<TextRange>,
+    /// A reference class method's docstring: a string as the body's first
+    /// statement.
+    docstring: Option<String>,
     formals: OnceCell<Vec<Formal>>,
     block: OnceCell<Option<Block>>,
 }
@@ -74,9 +96,15 @@ impl Member {
             default,
             function,
             block_span,
+            docstring: None,
             formals: OnceCell::new(),
             block: OnceCell::new(),
         }
+    }
+
+    pub(crate) fn with_docstring(mut self, docstring: Option<String>) -> Self {
+        self.docstring = docstring;
+        self
     }
 
     pub fn formals(&self) -> &[Formal] {
@@ -84,9 +112,18 @@ impl Member {
             .get_or_init(|| self.function.as_ref().map(formals).unwrap_or_default())
     }
 
+    /// Its `#'` block, else its docstring as the description.
     pub fn block(&self, text: &str) -> Option<&Block> {
         self.block
-            .get_or_init(|| block_in(text, self.block_span))
+            .get_or_init(|| {
+                block_in(text, self.block_span).or_else(|| {
+                    let docstring = self.docstring.clone()?;
+                    Some(Block {
+                        description: Some(docstring),
+                        ..Block::default()
+                    })
+                })
+            })
             .as_ref()
     }
 }
@@ -98,9 +135,21 @@ pub struct ClassInfo {
     pub members: Vec<Member>,
     /// S7 `constructor =` was supplied, so the properties are not its arguments.
     pub custom_constructor: bool,
-    /// Whether the class is called by its name: an assigned S4 generator, any
-    /// S7 class. R6 classes are called through `$new()`.
+    /// Whether the class is called by its name: an assigned S4 or reference
+    /// class generator, any S7 class. R6 classes are called through `$new()`.
     pub callable: bool,
+    /// The classes an S7 union combines, as written.
+    pub union_of: Vec<String>,
+    /// Code outside the definition that runs as its methods: a reference
+    /// class's later `X$methods(...)` calls.
+    pub method_ranges: Vec<TextRange>,
+}
+
+impl ClassInfo {
+    /// Whether `at` is inside code that runs as one of the class's methods.
+    pub fn runs_at(&self, stmt_range: TextRange, at: TextSize) -> bool {
+        stmt_range.contains(at) || self.method_ranges.iter().any(|r| r.contains(at))
+    }
 }
 
 /// Formals and the roxygen block are derived on first use: most definitions
@@ -114,6 +163,8 @@ pub struct Definition {
     pub class: Option<ClassInfo>,
     /// The whole top-level statement, so code inside a class body can find it.
     pub stmt_range: TextRange,
+    /// `pkg::name` for an S7 external generic.
+    pub external: Option<String>,
     callable: Callable,
     block_span: Option<TextRange>,
     formals: OnceCell<Vec<Formal>>,
@@ -135,6 +186,7 @@ impl Definition {
             kind,
             class,
             stmt_range: statement.text_trimmed_range(),
+            external: None,
             callable,
             block_span: leading_block_span(statement),
             formals: OnceCell::new(),
@@ -252,6 +304,22 @@ pub fn parse(text: &str) -> Parsed {
         match oo::recognise(&expr) {
             Some(oo::Item::Def(def)) => defs.push(def),
             Some(oo::Item::Method(method)) => methods.push(method),
+            Some(oo::Item::RefMethods {
+                class,
+                members,
+                range,
+            }) => {
+                // Only a class defined earlier in the same file is extended.
+                let info = defs
+                    .iter_mut()
+                    .rev()
+                    .find(|d: &&mut Definition| d.kind == DefKind::RefClass && d.name == class)
+                    .and_then(|d| d.class.as_mut());
+                if let Some(info) = info {
+                    info.members.extend(members);
+                    info.method_ranges.push(range);
+                }
+            }
             None => {}
         }
     }

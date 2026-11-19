@@ -352,6 +352,19 @@ suite("object-oriented code", () => {
     "p$greet()",
     'd <- Dog(name = "Rex")',
     "",
+    "#' An account",
+    'Account <- setRefClass("Account", fields = list(balance = "numeric"),',
+    '  methods = list(deposit = function(x) { "Add money."; balance <<- balance + x }))',
+    "",
+    "#' A circle",
+    "#' @slot r The radius.",
+    'Circle <- setClass("Circle", slots = c(r = "numeric"))',
+    "",
+    "a <- Account(balance = 1)",
+    "a$deposit(2)",
+    "c1 <- Circle(r = 1)",
+    "c1@r",
+    "",
   ].join("\n");
 
   setup(async function () {
@@ -366,6 +379,14 @@ suite("object-oriented code", () => {
     assert.equal(constructor?.signatures[0]?.label, "Person$new(name)");
     const dog = await signatureAt(doc, positionOf(doc, "Dog(name", "Dog(".length), "(");
     assert.equal(dog?.signatures[0]?.label, "Dog(name)");
+  });
+
+  test("reference class methods and S4 slots get hover", async () => {
+    const doc = await openUntitled(source);
+    assert.match(hoverText(await hoversAt(doc, positionOf(doc, "a$deposit(2)", 3))), /Add money/);
+    assert.match(hoverText(await hoversAt(doc, positionOf(doc, "c1@r", 3))), /The radius/);
+    const help = await signatureAt(doc, positionOf(doc, "a$deposit(2)", "a$deposit(".length), "(");
+    assert.equal(help?.signatures[0]?.label, "Account$deposit(x)");
   });
 
   test("open documentation works on an R6 member under the cursor", async () => {

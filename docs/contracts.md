@@ -52,7 +52,7 @@ impl Index {
     pub fn hover(&self, path: &str, offset: u32) -> Option<Hover>;
     pub fn signature_help(&self, path: &str, offset: u32) -> Option<SignatureHelp>;
     /// Full documentation page (markdown) for the "Open documentation" preview.
-    /// Also accepts the R6 names hovers report: `Class$member`, `Class$new`.
+    /// Also accepts the member names hovers report: `Class$member`, `Class$new`, `Class@slot`.
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String>;
     pub fn documented_functions(&self) -> Vec<FunctionSummary>;
     /// Every indexed file, sorted by path.
@@ -68,7 +68,7 @@ Output types serialize with `#[serde(rename_all = "camelCase")]`:
 type HoverKind = "call" | "definition" | "identifier";
 interface Range { start: number; end: number }          // UTF-16
 interface Hover {
-  name: string;          // resolved name; "Class$member" for an R6 member or "Class$new" for its constructor
+  name: string;          // resolved name; "Class$member" / "Class$new" for R6 and reference class members, "Class@slot" for S4 slots and S7 properties
   kind: HoverKind;       // call = callee of a call (incl. x$m(...)); definition = LHS of the assignment; identifier = any other use
   markdown: string;
   range: Range;          // the hovered identifier
@@ -114,23 +114,45 @@ Resolution rules:
     own `constructor` they are that function's. `new_generic(name,
     dispatch_args, fun)` is a generic taking `fun`'s formals, or
     `dispatch_args` then `...`. `method(generic, signature) <- function` is a
-    method; `<- NULL` is not.
+    method; `<- NULL` is not. `X <- new_union(...)` and `X <- class_a |
+    class_b` (only when every operand is an identifier or `NULL` and one is
+    `class_*` or `NULL`, so `a | b` stays a logical or) are unions: not
+    callable, shown with their classes. `X <- new_external_generic(package,
+    name, dispatch_args)` stands for `package::name` (with `:=`, `name` is
+    `X`); it is not callable, and methods registered with `method(X, ...)`
+    are listed on its page. `:=` is not recognised for `setClass`,
+    `setRefClass`, `R6Class` or `new_union`, which take no `name`.
   - R6: `X <- R6Class(...)` is a class, called through `X$new()` with the
     formals of the first `initialize` in its `inherit` chain. Members come from
     `public`, `private` and `active` lists, with `#'` blocks on the members.
+  - Reference classes: `setRefClass(Class, fields, contains, methods)` is a
+    class, callable as `X(...)` and `X$new(...)` when assigned to `X`. Its
+    constructor takes the first `initialize` in its `contains` chain, else
+    its and its ancestors' fields. Methods come from `methods = list(...)` and
+    from later `X$methods(...)` calls in the same file, documented by a `#'`
+    block or a docstring (a string as the body's first statement). Inside its
+    method bodies, bare names that are its fields or methods resolve to them
+    before anything else.
   - Docs: classes use their block plus `@param`, then `@slot` (S4) or `@prop`
-    (S7), for constructor arguments, searched from the class up its chain;
-    R6 classes use `@field` and `initialize`'s `@param`. A generic's page
+    (S7) or `@field` (reference classes), for constructor arguments, searched
+    from the class up its chain; R6 classes use `@field` and `initialize`'s
+    `@param`. A generic's page
     lists the workspace methods registered for it, and a generic with only
     documented methods is still documented. The manifest overlay is not used
     for these definitions, so the enhanced tier does not change them.
-- **R6 members** (`x$m`, `x$m(...)` with `x` a plain identifier): `Class$new`
-  is the constructor; `self$m` and `private$m` inside a class body are its
-  public or private members, and `super$m` its parent's; otherwise `x` must
-  have been assigned `x <- Class$new(...)` (or `=`, `<<-`) earlier in the
-  innermost enclosing statement list that assigns it, and a function
-  parameter named `x` stops the search. Members are found up the `inherit`
-  chain. Any other `x` gives `None`.
+- **Members and slots** (`x$m`, `x$m(...)` and `x@s`, with `x` a plain
+  identifier). `$` reaches R6 and reference class members, `@` S4 slots and
+  S7 properties; members are found up the inheritance chain. `Class$new` is
+  the constructor. In an R6 class body `self$m` and `private$m` are its public
+  or private members and `super$m` its parent's; in a reference class
+  `.self$m` is its member. Otherwise `x`'s class comes from the innermost
+  scope that binds it: a parameter of a method definition takes the class
+  it dispatches on (`setMethod(f, signature, function(x, ...))` by name or
+  position, `setValidity(Class, function(object))`, `method(f, Class) <-
+  function(x)`), any other parameter stops the search, and an earlier
+  assignment in a statement list takes the class it constructs
+  (`Class$new(...)`, `Class(...)`, `new("Class", ...)`). Any other `x` gives
+  `None`.
 - Unknown callees, `pkg::fn` callees and undocumented functions return `None`
   (Ark handles them). An undocumented function *with* a manifest topic is
   documented.

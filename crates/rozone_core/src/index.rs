@@ -39,9 +39,16 @@ pub(crate) struct FileEntry {
     pub root: RSyntaxNode,
     pub defs: Vec<Definition>,
     pub methods: Vec<MethodDef>,
+    has_ref_class: bool,
 }
 
 impl FileEntry {
+    /// Whether bare names inside the file may be reference class members;
+    /// computed once, as every hover asks.
+    pub fn has_ref_class(&self) -> bool {
+        self.has_ref_class
+    }
+
     /// Computed on first use: only the manifest overlay needs it.
     pub fn hash(&self) -> &str {
         self.hash.get_or_init(|| content_hash(&self.text))
@@ -92,6 +99,7 @@ impl FileEntry {
             text: text.into(),
             map: TextMap::new(text),
             root: parsed.root,
+            has_ref_class: parsed.defs.iter().any(|d| d.kind == DefKind::RefClass),
             defs: parsed.defs,
             methods: parsed.methods,
         }
@@ -306,12 +314,21 @@ impl Index {
                     HoverKind::Definition,
                 ))
             }
-            Usage::Callee => Some((
-                Target::Def(self.lookup(&ident.name, Some(path))?),
-                HoverKind::Call,
-            )),
-            Usage::Bare => Some((
-                Target::Def(self.lookup(&ident.name, Some(path))?),
+            Usage::Callee | Usage::Bare => {
+                let kind = if ident.usage == Usage::Callee {
+                    HoverKind::Call
+                } else {
+                    HoverKind::Identifier
+                };
+                let target =
+                    match self.ref_class_member(path, file, &ident.name, ident.range.start()) {
+                        Some(member) => member,
+                        None => Target::Def(self.lookup(&ident.name, Some(path))?),
+                    };
+                Some((target, kind))
+            }
+            Usage::Slot => Some((
+                self.slot_target(path, &ident.name, ident.receiver.as_ref()?)?,
                 HoverKind::Identifier,
             )),
             Usage::Member | Usage::MemberCallee => {
@@ -333,7 +350,10 @@ impl Index {
         let site = call_at(&file.root, byte)?;
         let (path, _) = self.files.get_key_value(path)?;
         let target = match &site.receiver {
-            None => Target::Def(self.lookup(&site.callee, Some(path))?),
+            None => match self.ref_class_member(path, file, &site.callee, byte) {
+                Some(member) => member,
+                None => Target::Def(self.lookup(&site.callee, Some(path))?),
+            },
             Some(receiver) => self.member_target(path, file, &site.callee, receiver)?,
         };
         let page = self.page(target)?;
@@ -365,14 +385,12 @@ impl Index {
     }
 
     /// The full documentation page for `name`, resolved as from `from_path`.
-    /// `Class$member` and `Class$new`, the names R6 hovers report, work too.
+    /// `Class$member`, `Class$new` and `Class@slot`, the names member hovers
+    /// report, work too.
     pub fn documentation(&self, name: &str, from_path: Option<&str>) -> Option<String> {
         let target = match self.lookup(name, from_path) {
             Some(def) => Target::Def(def),
-            None => {
-                let (class, member) = name.split_once('$')?;
-                self.member_by_name(class, member, from_path)?
-            }
+            None => self.member_by_name(name, from_path)?,
         };
         let page = self.page(target)?;
         Some(self.page_markdown(&page, matches!(target, Target::Def(_))))
@@ -394,7 +412,7 @@ impl Index {
                 })
             }
             Target::Def(def) => self.oo_page(def),
-            Target::New(class) => self.r6_page(class, true),
+            Target::New(class) => self.object_page(class, true),
             Target::Member {
                 class,
                 owner,

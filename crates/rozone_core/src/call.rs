@@ -17,9 +17,11 @@ pub enum Usage {
     Member,
     /// As `Member`, but called: `x$name(...)`.
     MemberCallee,
+    /// The name after `@` in `x@name`.
+    Slot,
 }
 
-/// The object side of `x$name`: a plain identifier and the whole `x$name`
+/// The object side of `x$name` or `x@name`: a plain identifier and the whole
 /// expression, from which its scope can be searched.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Receiver {
@@ -60,7 +62,7 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
             | RSyntaxKind::R_ARGUMENT_NAME_CLAUSE
             | RSyntaxKind::R_PARAMETER => return None,
             RSyntaxKind::R_EXTRACT_EXPRESSION if parent.last_child().as_ref() == Some(&node) => {
-                let receiver = receiver_of(&parent)?;
+                let (receiver, slot) = receiver_of(&parent)?;
                 let called = parent.parent().is_some_and(|call| {
                     call.kind() == RSyntaxKind::R_CALL
                         && call.first_child().as_ref() == Some(&parent)
@@ -68,10 +70,10 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
                 return Some(IdentAt {
                     name: unquote(token.text_trimmed()),
                     range: token.text_trimmed_range(),
-                    usage: if called {
-                        Usage::MemberCallee
-                    } else {
-                        Usage::Member
+                    usage: match (slot, called) {
+                        (true, _) => Usage::Slot,
+                        (false, true) => Usage::MemberCallee,
+                        (false, false) => Usage::Member,
                     },
                     receiver: Some(receiver),
                 });
@@ -88,19 +90,22 @@ pub fn ident_at(root: &RSyntaxNode, offset: TextSize) -> Option<IdentAt> {
     })
 }
 
-/// `x` in `x$name`, when it is a plain identifier and the operator is `$`.
-fn receiver_of(extract: &RSyntaxNode) -> Option<Receiver> {
-    let op = operator_of(extract)?;
-    if op.kind() != RSyntaxKind::DOLLAR {
-        return None;
-    }
+/// `x` in `x$name` or `x@name`, when it is a plain identifier, and whether the
+/// operator is `@`.
+fn receiver_of(extract: &RSyntaxNode) -> Option<(Receiver, bool)> {
+    let slot = match operator_of(extract)?.kind() {
+        RSyntaxKind::DOLLAR => false,
+        RSyntaxKind::AT => true,
+        _ => return None,
+    };
     let left = extract
         .first_child()
         .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
-    Some(Receiver {
+    let receiver = Receiver {
         name: unquote(&left.text_trimmed().to_string()),
         node: extract.clone(),
-    })
+    };
+    Some((receiver, slot))
 }
 
 fn binary_usage(binary: &RSyntaxNode, ident: &RSyntaxNode) -> Usage {
@@ -166,7 +171,9 @@ pub fn call_at(root: &RSyntaxNode, offset: TextSize) -> Option<CallSite> {
     let (callee, receiver) = match function.kind() {
         RSyntaxKind::R_IDENTIFIER => (function, None),
         RSyntaxKind::R_EXTRACT_EXPRESSION => {
-            let receiver = receiver_of(&function)?;
+            let (receiver, false) = receiver_of(&function)? else {
+                return None;
+            };
             let member = function
                 .last_child()
                 .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
@@ -537,7 +544,7 @@ mod tests {
         );
         assert_eq!(at("x$wm¦ean"), Some(("wmean".into(), Usage::Member)));
         assert_eq!(at("f()$wm¦ean"), None);
-        assert_eq!(at("x@wm¦ean"), None);
+        assert_eq!(at("x@wm¦ean"), Some(("wmean".into(), Usage::Slot)));
         assert_eq!(
             at("Wm¦ean := new_class()"),
             Some(("Wmean".into(), Usage::AssignTarget))

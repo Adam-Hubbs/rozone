@@ -1,5 +1,5 @@
-//! Documentation for S4, R6 and S7 classes and generics, and for R6 members
-//! reached through `x$name`.
+//! Documentation for S4, R6, reference class and S7 definitions, and for the
+//! members reached through `x$name` and the slots through `x@name`.
 
 use std::collections::HashMap;
 
@@ -11,6 +11,7 @@ use crate::call::Receiver;
 use crate::extract::{DefKind, Formal, Member, MemberKind, formals, unquote};
 use crate::index::{DefRef, FileEntry, Index, Page, Target};
 use crate::markdown;
+use crate::oo::dispatch_class;
 use crate::resolve::Resolved;
 use crate::roxygen::Block;
 
@@ -36,26 +37,31 @@ impl Access {
 }
 
 impl Index {
-    /// The page for a class or generic definition.
+    /// The page for a class, union or generic definition.
     pub(crate) fn oo_page<'a>(&'a self, def: DefRef<'a>) -> Option<Page<'a>> {
         match def.def().kind {
-            DefKind::S4Generic | DefKind::S7Generic => self.generic_page(def),
+            DefKind::S4Generic | DefKind::S7Generic | DefKind::S7ExternalGeneric => {
+                self.generic_page(def)
+            }
             DefKind::S4Class | DefKind::S7Class => self.class_page(def),
-            DefKind::R6Class => self.r6_page(def, false),
+            DefKind::R6Class | DefKind::RefClass => self.object_page(def, false),
+            DefKind::S7Union => self.union_page(def),
             DefKind::Function => None,
         }
     }
 
     /// A generic's own documentation plus the methods registered for it in
     /// the workspace. Documented methods make an undocumented generic worth
-    /// showing.
+    /// showing. An external generic is shown with the generic it stands for.
     fn generic_page<'a>(&'a self, def: DefRef<'a>) -> Option<Page<'a>> {
-        let name = &def.def().name;
+        let definition = def.def();
+        let name = &definition.name;
+        let shown = definition.external.as_deref().unwrap_or(name);
         let methods: Vec<(String, Option<String>)> = self
             .methods_of(name)
             .map(|(file, method)| {
                 let summary = method.block(&file.text).and_then(Block::summary_line);
-                (format!("{name}(<{}>)", method.classes.join(", ")), summary)
+                (format!("{shown}(<{}>)", method.classes.join(", ")), summary)
             })
             .collect();
         let own = self.resolve_fields(def, true);
@@ -67,13 +73,18 @@ impl Index {
             doc.sections
                 .push(("Methods".to_string(), list(&methods, MAX_METHODS)));
         }
+        let usage = definition.external.as_ref().map(|external| {
+            doc.related
+                .push(format!("*Registers methods for `{external}`.*"));
+            markdown::signature(external, definition.formals()).label
+        });
         Some(Page {
             name: name.clone(),
             path: def.path,
-            formals: def.formals().to_vec(),
-            usage: None,
+            formals: definition.formals().to_vec(),
+            callable: usage.is_none(),
+            usage,
             doc,
-            callable: true,
             def: Some(def),
         })
     }
@@ -108,29 +119,26 @@ impl Index {
                 .collect();
         }
         doc.related.extend(inherits_line(definition.parent()));
-        let usage = (!class.callable).then(|| {
-            let mut args = vec![Formal {
-                name: format!("\"{}\"", definition.name),
-                default: None,
-            }];
-            args.extend(formals.iter().cloned());
-            markdown::signature("new", &args).label
-        });
         Some(Page {
             name: definition.name.clone(),
             path: def.path,
+            usage: (!class.callable).then(|| new_usage(&definition.name, &formals)),
             formals,
-            usage,
             doc,
             callable: class.callable,
             def: Some(def),
         })
     }
 
-    /// An R6 class, shown with the usage of `$new()`. `constructor` is the
-    /// page for `Class$new` itself, which is callable.
-    pub(crate) fn r6_page<'a>(&'a self, class: DefRef<'a>, constructor: bool) -> Option<Page<'a>> {
+    /// An R6 or reference class: its fields, active bindings and methods, and
+    /// its constructor. `constructor` is the page for `Class$new` itself.
+    pub(crate) fn object_page<'a>(
+        &'a self,
+        class: DefRef<'a>,
+        constructor: bool,
+    ) -> Option<Page<'a>> {
         let definition = class.def();
+        let info = definition.class.as_ref()?;
         let text = &class.file.text;
         let block = class.block();
         let own = self.resolve_fields(class, false);
@@ -144,18 +152,26 @@ impl Index {
         }
         let mut doc = own.unwrap_or_else(|| Resolved::empty(DocSource::Static));
 
-        let initialize = self.find_member(class, "initialize", Access::Any);
-        let formals = initialize
-            .map(|(_, m)| m.formals().to_vec())
-            .unwrap_or_default();
-        if let Some((owner, member)) = initialize
-            && let Some(init_block) = member.block(&owner.file.text)
-        {
-            doc.params = formals
-                .iter()
-                .filter_map(|f| Some((f.name.clone(), init_block.param(&f.name)?.to_string())))
-                .collect();
-        }
+        let formals = self.class_formals(class);
+        doc.params = match self.find_member(class, "initialize", Access::Any) {
+            Some((owner, member)) => member
+                .block(&owner.file.text)
+                .map(|init| {
+                    formals
+                        .iter()
+                        .filter_map(|f| Some((f.name.clone(), init.param(&f.name)?.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            // A reference class's default constructor takes its fields.
+            None => {
+                let documented = self.class_param_docs(class, &formals);
+                formals
+                    .iter()
+                    .filter_map(|f| Some((f.name.clone(), documented.get(&f.name)?.clone())))
+                    .collect()
+            }
+        };
 
         let field_doc = |member: &Member| {
             block
@@ -204,8 +220,16 @@ impl Index {
         doc.related.extend(inherits_line(definition.parent()));
 
         let new_name = format!("{}$new", definition.name);
+        let generator = definition.kind == DefKind::RefClass && info.callable;
+        let usage = if constructor || definition.kind == DefKind::R6Class {
+            markdown::signature(&new_name, &formals).label
+        } else if generator {
+            markdown::signature(&definition.name, &formals).label
+        } else {
+            new_usage(&definition.name, &formals)
+        };
         Some(Page {
-            usage: Some(markdown::signature(&new_name, &formals).label),
+            usage: Some(usage),
             name: if constructor {
                 new_name
             } else {
@@ -214,24 +238,56 @@ impl Index {
             path: class.path,
             formals,
             doc,
-            callable: constructor,
+            callable: constructor || generator,
             def: Some(class),
         })
     }
 
-    /// An R6 method, field or active binding.
+    /// An S7 union: a type made of other classes.
+    fn union_page<'a>(&'a self, def: DefRef<'a>) -> Option<Page<'a>> {
+        let definition = def.def();
+        let classes = &definition.class.as_ref()?.union_of;
+        let mut doc = self.resolve_fields(def, false)?;
+        let entries: Vec<(String, Option<String>)> =
+            classes.iter().map(|c| (c.clone(), None)).collect();
+        doc.sections
+            .push(("Classes".to_string(), list(&entries, usize::MAX)));
+        Some(Page {
+            name: definition.name.clone(),
+            path: def.path,
+            formals: Vec::new(),
+            usage: Some(format!("new_union({})", classes.join(", "))),
+            doc,
+            callable: false,
+            def: Some(def),
+        })
+    }
+
+    /// An R6 or reference class method or field, or an S4 slot or S7
+    /// property.
     pub(crate) fn member_page<'a>(
         &'a self,
         class: DefRef<'a>,
         owner: DefRef<'a>,
         member: &'a Member,
     ) -> Option<Page<'a>> {
-        let name = format!("{}${}", class.def().name, member.name);
+        let slot = matches!(member.kind, MemberKind::Slot | MemberKind::Property);
+        let name = format!(
+            "{}{}{}",
+            class.def().name,
+            if slot { "@" } else { "$" },
+            member.name
+        );
         let own_block = member.block(&owner.file.text);
-        let relation = if owner.key() == class.key() {
-            format!("*Member of `{}`.*", class.def().name)
-        } else {
+        let relation = if owner.key() != class.key() {
             format!("*Inherited from `{}`.*", owner.def().name)
+        } else {
+            let what = match member.kind {
+                MemberKind::Slot => "Slot",
+                MemberKind::Property => "Property",
+                _ => "Member",
+            };
+            format!("*{what} of `{}`.*", class.def().name)
         };
         match member.kind {
             MemberKind::Method => {
@@ -253,18 +309,23 @@ impl Index {
                     def: None,
                 })
             }
-            MemberKind::Field | MemberKind::Active => {
-                let text = owner
-                    .block()
-                    .and_then(|b| b.field(&member.name))
-                    .map(str::to_string)
-                    .or_else(|| {
-                        let own = own_block?;
-                        own.field(&member.name)
-                            .map(str::to_string)
-                            .or_else(|| own.description.clone())
-                            .or_else(|| own.title.clone())
-                    })?;
+            MemberKind::Field | MemberKind::Active | MemberKind::Slot | MemberKind::Property => {
+                let class_block = owner.block();
+                let text = match member.kind {
+                    MemberKind::Slot => class_block
+                        .and_then(|b| b.slot(&member.name).or_else(|| b.param(&member.name))),
+                    MemberKind::Property => class_block
+                        .and_then(|b| b.prop(&member.name).or_else(|| b.param(&member.name))),
+                    _ => class_block.and_then(|b| b.field(&member.name)),
+                }
+                .map(str::to_string)
+                .or_else(|| {
+                    let own = own_block?;
+                    own.field(&member.name)
+                        .map(str::to_string)
+                        .or_else(|| own.description.clone())
+                        .or_else(|| own.title.clone())
+                })?;
                 let mut doc = Resolved::empty(DocSource::Static);
                 doc.description = Some(text);
                 doc.related.push(relation);
@@ -278,13 +339,12 @@ impl Index {
                     def: None,
                 })
             }
-            MemberKind::Slot | MemberKind::Property => None,
         }
     }
 
     /// What `receiver$name` refers to: `Class$new`, a member of the enclosing
-    /// class through `self`, `private` or `super`, or a member of the class an
-    /// identifier was last assigned from with `Class$new()` in scope.
+    /// class through `self`, `private`, `super` or `.self`, or a member of the
+    /// class `receiver` was constructed from in scope.
     pub(crate) fn member_target<'a>(
         &'a self,
         path: &'a str,
@@ -293,24 +353,29 @@ impl Index {
         receiver: &Receiver,
     ) -> Option<Target<'a>> {
         let at = receiver.node.text_trimmed_range().start();
+        let r6 = |kind: DefKind| kind == DefKind::R6Class;
         let (class, access) = match receiver.name.as_str() {
-            "self" => (self.enclosing_r6(path, file, at)?, Access::Public),
-            "private" => (self.enclosing_r6(path, file, at)?, Access::Private),
+            "self" => (self.enclosing_class(path, file, at, r6)?, Access::Public),
+            "private" => (self.enclosing_class(path, file, at, r6)?, Access::Private),
             "super" => (
-                self.parent_of(self.enclosing_r6(path, file, at)?)?,
+                self.parent_of(self.enclosing_class(path, file, at, r6)?)?,
+                Access::Any,
+            ),
+            ".self" => (
+                self.enclosing_class(path, file, at, |k| k == DefKind::RefClass)?,
                 Access::Any,
             ),
             other => {
                 if let Some(class) = self
                     .lookup(other, Some(path))
-                    .filter(|d| d.def().kind == DefKind::R6Class)
+                    .filter(|d| d.def().kind.has_dollar_members())
                 {
                     return (name == "new").then_some(Target::New(class));
                 }
-                let class_name = assigned_class(&receiver.node, other)?;
+                let class_name = receiver_class(&receiver.node, other)?;
                 let class = self
                     .lookup(&class_name, Some(path))
-                    .filter(|d| d.def().kind == DefKind::R6Class)?;
+                    .filter(|d| d.def().kind.has_dollar_members())?;
                 (class, Access::Public)
             }
         };
@@ -322,17 +387,69 @@ impl Index {
         })
     }
 
-    /// `Class$member` by name, public members first.
+    /// What `receiver@name` refers to: a slot or property of the S4 or S7
+    /// class `receiver` was constructed from, or that the method it is a
+    /// parameter of dispatches on.
+    pub(crate) fn slot_target<'a>(
+        &'a self,
+        path: &'a str,
+        name: &str,
+        receiver: &Receiver,
+    ) -> Option<Target<'a>> {
+        let class_name = receiver_class(&receiver.node, &receiver.name)?;
+        let class = self
+            .lookup(&class_name, Some(path))
+            .filter(|d| d.def().kind.has_slots())?;
+        let (owner, member) = self.find_member(class, name, Access::Any)?;
+        Some(Target::Member {
+            class,
+            owner,
+            member,
+        })
+    }
+
+    /// Inside a reference class method, fields and other methods are used by
+    /// bare name and take precedence over anything else of that name.
+    pub(crate) fn ref_class_member<'a>(
+        &'a self,
+        path: &'a str,
+        file: &'a FileEntry,
+        name: &str,
+        at: TextSize,
+    ) -> Option<Target<'a>> {
+        if !file.has_ref_class() {
+            return None;
+        }
+        let class = self.enclosing_class(path, file, at, |k| k == DefKind::RefClass)?;
+        let (owner, member) = self.find_member(class, name, Access::Any)?;
+        Some(Target::Member {
+            class,
+            owner,
+            member,
+        })
+    }
+
+    /// `Class$member`, `Class$new` or `Class@slot` by name, public members first.
     pub(crate) fn member_by_name<'a>(
         &'a self,
-        class: &str,
-        member: &str,
+        name: &str,
         from_path: Option<&str>,
     ) -> Option<Target<'a>> {
-        let class = self
-            .lookup(class, from_path)
-            .filter(|d| d.def().kind == DefKind::R6Class)?;
-        if member == "new" {
+        let (class, member, slot) = match name.split_once('@') {
+            Some((class, slot)) => (class, slot, true),
+            None => {
+                let (class, member) = name.split_once('$')?;
+                (class, member, false)
+            }
+        };
+        let class = self.lookup(class, from_path).filter(|d| {
+            if slot {
+                d.def().kind.has_slots()
+            } else {
+                d.def().kind.has_dollar_members()
+            }
+        })?;
+        if !slot && member == "new" {
             return Some(Target::New(class));
         }
         let (owner, member) = self
@@ -345,16 +462,19 @@ impl Index {
         })
     }
 
-    fn enclosing_r6<'a>(
+    fn enclosing_class<'a>(
         &'a self,
         path: &'a str,
         file: &'a FileEntry,
         at: TextSize,
+        kind: impl Fn(DefKind) -> bool,
     ) -> Option<DefRef<'a>> {
-        let idx = file
-            .defs
-            .iter()
-            .position(|d| d.kind == DefKind::R6Class && d.stmt_range.contains(at))?;
+        let idx = file.defs.iter().position(|d| {
+            kind(d.kind)
+                && d.class
+                    .as_ref()
+                    .is_some_and(|c| c.runs_at(d.stmt_range, at))
+        })?;
         Some(DefRef { path, file, idx })
     }
 
@@ -397,11 +517,21 @@ impl Index {
         })
     }
 
-    /// The constructor's arguments. S4 and S7 classes take their ancestors'
-    /// slots or properties before their own; an S7 class below one with a
-    /// custom constructor takes `...` for everything above it.
+    /// The constructor's arguments. R6 and reference classes with an
+    /// `initialize` take its formals. Otherwise S4 classes and reference
+    /// classes take their ancestors' slots or fields before their own, and S7
+    /// classes their properties; an S7 class below one with a custom
+    /// constructor takes `...` for everything above it.
     fn class_formals(&self, def: DefRef<'_>) -> Vec<Formal> {
         let definition = def.def();
+        if definition.kind.has_dollar_members() {
+            if let Some((_, init)) = self.find_member(def, "initialize", Access::Any) {
+                return init.formals().to_vec();
+            }
+            if definition.kind == DefKind::R6Class {
+                return Vec::new();
+            }
+        }
         let custom = |d: &DefRef<'_>| d.def().class.as_ref().is_some_and(|c| c.custom_constructor);
         if definition.kind == DefKind::S7Class && custom(&def) {
             return definition.formals().to_vec();
@@ -432,9 +562,9 @@ impl Index {
         out
     }
 
-    /// Constructor argument docs: `@param`, then `@slot` (S4) or `@prop`
-    /// (S7), from the class and then its ancestors, so a subclass can
-    /// redocument an inherited argument.
+    /// Constructor argument docs: `@param`, then `@slot` (S4), `@prop` (S7)
+    /// or `@field` (reference classes), from the class and then its
+    /// ancestors, so a subclass can redocument an inherited argument.
     fn class_param_docs(&self, def: DefRef<'_>, formals: &[Formal]) -> HashMap<String, String> {
         let kind = def.def().kind;
         let mut documented: HashMap<String, String> = HashMap::new();
@@ -443,6 +573,7 @@ impl Index {
             for formal in formals {
                 let text = block.param(&formal.name).or_else(|| match kind {
                     DefKind::S4Class => block.slot(&formal.name),
+                    DefKind::RefClass => block.field(&formal.name),
                     _ => block.prop(&formal.name),
                 });
                 if let Some(text) = text {
@@ -454,6 +585,16 @@ impl Index {
         }
         documented
     }
+}
+
+/// `new("Class", ...)`, the usage of a class without a generator.
+fn new_usage(class: &str, formals: &[Formal]) -> String {
+    let mut args = vec![Formal {
+        name: format!("\"{class}\""),
+        default: None,
+    }];
+    args.extend(formals.iter().cloned());
+    markdown::signature("new", &args).label
 }
 
 /// A method's or member's own block as documentation.
@@ -495,10 +636,11 @@ fn list(entries: &[(String, Option<String>)], max: usize) -> String {
     lines.join("\n")
 }
 
-/// The class `name` was last assigned from with `Class$new(...)` before
-/// `node`, in the innermost enclosing scope that assigns it. A function
-/// parameter of that name hides outer assignments, so it gives `None`.
-fn assigned_class(node: &RSyntaxNode, name: &str) -> Option<String> {
+/// The class `name` holds at `node`: the one a method it is a parameter of
+/// dispatches on, or the one it was last constructed from (`Class$new(...)`,
+/// `Class(...)`, `new("Class", ...)`) in the innermost enclosing scope that
+/// assigns it. Any other parameter hides outer assignments.
+fn receiver_class(node: &RSyntaxNode, name: &str) -> Option<String> {
     let at = node.text_trimmed_range().start();
     for scope in node.ancestors() {
         match scope.kind() {
@@ -519,7 +661,7 @@ fn assigned_class(node: &RSyntaxNode, name: &str) -> Option<String> {
             RSyntaxKind::R_FUNCTION_DEFINITION => {
                 let function = RFunctionDefinition::cast(scope)?;
                 if formals(&function).iter().any(|f| f.name == name) {
-                    return None;
+                    return dispatch_class(&function, name);
                 }
             }
             _ => {}
@@ -528,8 +670,8 @@ fn assigned_class(node: &RSyntaxNode, name: &str) -> Option<String> {
     None
 }
 
-/// For a statement assigning to `name`: `Some(Some(class))` for
-/// `name <- Class$new(...)`, `Some(None)` for any other value.
+/// For a statement assigning to `name`: `Some(Some(class))` when the value
+/// constructs an object, `Some(None)` for any other value.
 fn assignment_to(stmt: &RSyntaxNode, name: &str) -> Option<Option<String>> {
     let binary = stmt
         .first_child()
@@ -546,22 +688,43 @@ fn assignment_to(stmt: &RSyntaxNode, name: &str) -> Option<Option<String>> {
         return None;
     }
     let value = binary.last_child()?;
-    Some(new_call_class(&value))
+    Some(constructed_class(&value))
 }
 
-/// `Class` in `Class$new(...)`.
-fn new_call_class(value: &RSyntaxNode) -> Option<String> {
+/// The class in `Class$new(...)`, `Class(...)` or `new("Class", ...)`. The
+/// caller checks that it names a class.
+fn constructed_class(value: &RSyntaxNode) -> Option<String> {
     if value.kind() != RSyntaxKind::R_CALL {
         return None;
     }
-    let extract = value
-        .first_child()
-        .filter(|n| n.kind() == RSyntaxKind::R_EXTRACT_EXPRESSION)?;
-    let class = extract
-        .first_child()
-        .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
-    let member = extract
-        .last_child()
-        .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
-    (member.text_trimmed() == "new").then(|| unquote(&class.text_trimmed().to_string()))
+    let function = value.first_child()?;
+    match function.kind() {
+        RSyntaxKind::R_EXTRACT_EXPRESSION => {
+            let class = function
+                .first_child()
+                .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+            let member = function
+                .last_child()
+                .filter(|n| n.kind() == RSyntaxKind::R_IDENTIFIER)?;
+            (member.text_trimmed() == "new").then(|| unquote(&class.text_trimmed().to_string()))
+        }
+        RSyntaxKind::R_IDENTIFIER | RSyntaxKind::R_NAMESPACE_EXPRESSION => {
+            let callee = function.last_child().unwrap_or_else(|| function.clone());
+            let callee = unquote(&callee.text_trimmed().to_string());
+            if callee != "new" {
+                return Some(callee);
+            }
+            let first = value
+                .descendants()
+                .find(|n| n.kind() == RSyntaxKind::R_ARGUMENT)?;
+            let literal = first
+                .last_child()
+                .filter(|n| n.kind() == RSyntaxKind::R_STRING_VALUE)?
+                .text_trimmed()
+                .to_string();
+            let quoted = literal.len() >= 2 && matches!(literal.as_bytes()[0], b'"' | b'\'');
+            quoted.then(|| literal[1..literal.len() - 1].to_string())
+        }
+        _ => None,
+    }
 }

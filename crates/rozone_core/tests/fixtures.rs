@@ -26,4 +26,7 @@ fixture_snapshots! {
     s4 => "s4.R",
     r6 => "r6.R",
     s7 => "s7.R",
+    refclass => "refclass.R",
+    slots => "slots.R",
+    s7_types => "s7_types.R",
 }
