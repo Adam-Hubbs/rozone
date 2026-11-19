@@ -22,6 +22,10 @@ updates:
     directory: /editors/code
     schedule:
       interval: weekly
+    ignore:
+      # Must not exceed engines.vscode, or vsce refuses to package; raise it together with the engine.
+      - dependency-name: "@types/vscode"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       npm:
         patterns: ["*"]

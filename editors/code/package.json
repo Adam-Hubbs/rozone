@@ -105,7 +105,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/vscode": "1.100.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
@@ -116,5 +116,11 @@
   },
   "dependencies": {
     "@posit-dev/positron": "^0.2.15"
+  },
+  "overrides": {
+    "diff": "^9.0.0",
+    "glob": "^14.0.6",
+    "minimatch": "^11.0.9",
+    "serialize-javascript": "^7.1.4"
   }
 }
