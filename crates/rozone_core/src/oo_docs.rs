@@ -637,35 +637,34 @@ fn list(entries: &[(String, Option<String>)], max: usize) -> String {
 }
 
 /// The class `name` holds at `node`: the one a method it is a parameter of
-/// dispatches on, or the one it was last constructed from (`Class$new(...)`,
-/// `Class(...)`, `new("Class", ...)`) in the innermost enclosing scope that
-/// assigns it. Any other parameter hides outer assignments.
+/// dispatches on, or the one its latest assignment before `node` constructs
+/// (`Class$new(...)`, `Class(...)`, `new("Class", ...)`) in the innermost
+/// enclosing scope that assigns it. Any other parameter hides outer
+/// assignments.
 fn receiver_class(node: &RSyntaxNode, name: &str) -> Option<String> {
-    let at = node.text_trimmed_range().start();
-    for scope in node.ancestors() {
+    // Walking back from the statement holding `node` finds the latest
+    // assignment first, so the usual case stops after a few statements.
+    let mut inner = node.clone();
+    for scope in node.ancestors().skip(1) {
         match scope.kind() {
             RSyntaxKind::R_STATEMENT_LIST => {
-                let mut found = None;
-                for stmt in scope.children() {
-                    if stmt.text_trimmed_range().end() > at {
-                        break;
+                let mut stmt = inner.prev_sibling();
+                while let Some(current) = stmt {
+                    if let Some(class) = assignment_to(&current, name) {
+                        return class;
                     }
-                    if let Some(class) = assignment_to(&stmt, name) {
-                        found = Some(class);
-                    }
-                }
-                if let Some(class) = found {
-                    return class;
+                    stmt = current.prev_sibling();
                 }
             }
             RSyntaxKind::R_FUNCTION_DEFINITION => {
-                let function = RFunctionDefinition::cast(scope)?;
+                let function = RFunctionDefinition::cast(scope.clone())?;
                 if formals(&function).iter().any(|f| f.name == name) {
                     return dispatch_class(&function, name);
                 }
             }
             _ => {}
         }
+        inner = scope;
     }
     None
 }
@@ -683,8 +682,16 @@ fn assignment_to(stmt: &RSyntaxNode, name: &str) -> Option<Option<String>> {
         op.kind(),
         RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN
     ) || left.kind() != RSyntaxKind::R_IDENTIFIER
-        || unquote(&left.text_trimmed().to_string()) != name
     {
+        return None;
+    }
+    let token = left.first_token()?;
+    let target = token.text_trimmed();
+    let target = target
+        .strip_prefix('`')
+        .and_then(|t| t.strip_suffix('`'))
+        .unwrap_or(target);
+    if target != name {
         return None;
     }
     let value = binary.last_child()?;
