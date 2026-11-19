@@ -9,10 +9,10 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
-# Pin Air and its biome fork to the same revs; air_r_syntax types must match biome_rowan's.
-air_r_parser = { git = "https://github.com/posit-dev/air", rev = "a2b36beaacf02dd921b7d0dedb8fda1d23c00b3d" }
-air_r_syntax = { git = "https://github.com/posit-dev/air", rev = "a2b36beaacf02dd921b7d0dedb8fda1d23c00b3d" }
-biome_rowan = { git = "https://github.com/lionel-/biome", rev = "a1296ea6ba363d8b8d8f02181b2a4ce9315c5ef9" }
+# Pin biome_rowan to the biome rev Air's Cargo.lock uses; air_r_syntax types must match biome_rowan's.
+air_r_parser = { git = "https://github.com/posit-dev/air", rev = "1fb34aa2eecc7ac187c2b661a9044c99e9551aaa" }
+air_r_syntax = { git = "https://github.com/posit-dev/air", rev = "1fb34aa2eecc7ac187c2b661a9044c99e9551aaa" }
+biome_rowan = { git = "https://github.com/biomejs/biome", rev = "8c43bc0b620e0db4ec841ae20756acedcead9599" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rozone_core = { path = "crates/rozone_core" }
