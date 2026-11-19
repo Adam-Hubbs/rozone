@@ -169,6 +169,16 @@ suite("signature help", () => {
     assert.ok(help);
     assert.equal(help.signatures.filter((s) => s.label.startsWith("wmean(")).length, 1, "old registration was disposed");
   });
+
+  test("a request in flight while the provider is re-registered still gets signature help", async () => {
+    const doc = await openFixture("example_script.R");
+    const position = positionOf(doc, "wmean({{", 6);
+    for (let i = 0; i < 50; i++) {
+      const pending = signatureAt(doc, position, "(");
+      rozone._test.tier.signatureHelp.reregister();
+      assert.ok(await pending, `request ${i} came back empty`);
+    }
+  });
 });
 
 suite("live edits", () => {
