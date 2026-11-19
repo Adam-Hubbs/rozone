@@ -84,4 +84,4 @@ Mirror Oak's split (see its `test-fuzz.yml`):
 2. **Scheduled job (non-blocking)**: cron two times a week, 20-30 minutes per target, restore and save `fuzz/corpus` with `actions/cache` (restore-keys prefix, refresh within 7 days to avoid cache expiry), `cmin` before saving, upload `fuzz/artifacts` on failure.
 3. **Release gate**: the sentinel-file sidecar test (e), and optionally the strip-rule differential (d), on a runner with R and roxygen2.
 
-Install `cargo-fuzz` via `taiki-e/install-action` and use `Swatinem/rust-cache` with `workspaces: fuzz`.
+Install `cargo-fuzz` via `taiki-e/install-action` and use `Swatinem/rust-cache` with `workspaces: fuzz`. Pass `--target x86_64-unknown-linux-gnu`: install-action falls back to a musl-built cargo-fuzz, which otherwise defaults to the uninstalled musl target.

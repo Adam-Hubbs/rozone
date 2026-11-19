@@ -16,6 +16,10 @@ jobs:
     name: fuzz ${{ matrix.target }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # install-action falls back to cargo-binstall, whose prebuilt cargo-fuzz is
+      # musl-built and so defaults to the (uninstalled) musl target.
+      FUZZ_TRIPLE: x86_64-unknown-linux-gnu
     strategy:
       fail-fast: false
       matrix:
@@ -36,9 +40,9 @@ jobs:
           restore-keys: |
             fuzz-corpus-${{ matrix.target }}-
       - name: Build
-        run: cargo fuzz build -s none --fuzz-dir fuzz ${{ matrix.target }}
+        run: cargo fuzz build -s none --fuzz-dir fuzz --target "$FUZZ_TRIPLE" ${{ matrix.target }}
       - name: Fuzz for five minutes
-        run: cargo fuzz run -s none --fuzz-dir fuzz ${{ matrix.target }} -- -max_total_time=300
+        run: cargo fuzz run -s none --fuzz-dir fuzz --target "$FUZZ_TRIPLE" ${{ matrix.target }} -- -max_total_time=300
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@v7
