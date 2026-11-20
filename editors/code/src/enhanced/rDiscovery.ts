@@ -3,7 +3,7 @@ import type { Disposable, PositronBridge, RSession } from "./positronBridge.ts";
 
 export type Platform = NodeJS.Platform;
 
-function pathFor(platform: Platform): nodePath.PlatformPath {
+function pathFor(platform: Platform): typeof nodePath.posix {
   return platform === "win32" ? nodePath.win32 : nodePath.posix;
 }
 

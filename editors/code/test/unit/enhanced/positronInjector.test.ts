@@ -77,6 +77,12 @@ const settle = async () => {
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
 };
 
+// For work that crosses real fs I/O (e.g. pruning after an injection), which a fixed number of ticks cannot cover.
+const until = async (condition: () => boolean, timeoutMs = 2000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 1));
+};
+
 describe("PositronInjector", () => {
   let bridge: FakeBridge;
   let topics: string[][];
@@ -210,7 +216,7 @@ describe("PositronInjector", () => {
     bridge.switchTo({ id: "s1", runtimePath: "/r/bin/R" });
     await settle();
     bridge.switchTo({ id: "s2", runtimePath: "/r/bin/R" });
-    await settle();
+    await until(() => buildRequests === 2);
     assert.equal(buildRequests, 2);
   });
 
